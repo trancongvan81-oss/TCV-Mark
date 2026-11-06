@@ -369,9 +369,6 @@ textarea {
   grid-template-columns: 2fr 1fr;
   gap: 10px;
 }
-.prow .count-in {
-  width: 64px;
-}
 .seg {
   display: inline-flex;
   border: 1px solid var(--line);
@@ -698,7 +695,7 @@ canvas.photo {
 /* Phiếu 3 phần */
 .prow {
   display: grid;
-  grid-template-columns: 1fr auto 84px;
+  grid-template-columns: 1fr auto 64px;
   gap: 8px;
   align-items: center;
 }
@@ -721,6 +718,9 @@ canvas.photo {
 }
 .prow .num-in {
   width: 100%;
+}
+.prow .num-in.count-in {
+  width: 56px;
 }
 /* Thang điểm Phần II */
 .lrow {
