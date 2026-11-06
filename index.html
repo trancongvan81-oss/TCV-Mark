@@ -13880,6 +13880,8 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     });
   }
   let listUI = null;
+  /* Trạng thái bảng khôi phục: thông báo + file sao lưu đang chờ quyết định khi trùng tên đợt */
+  let rsInfo = { msg: '', conflict: null };
   if (!curList().cfg) {
     curList().cfg = JSON.parse(JSON.stringify(cfg));
     saveLists();
@@ -17075,7 +17077,10 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       (L.length > 1
         ? '<button type="button" class="btn small ghost danger" id="listDel">Xoá đợt</button>'
         : '') +
+      '<button type="button" class="btn small" id="listBk">Sao lưu</button><button type="button" class="btn small ghost" id="listRs">Khôi phục</button>' +
       '</div>';
+    if (listUI === 'bk') h += bkPanelHTML();
+    if (listUI === 'rs') h += rsPanelHTML();
     if (listUI === 'new')
       h +=
         '<label class="listcopy"><input type="checkbox" id="listCopy"> Sao chép đáp án, cấu trúc và danh sách ' +
@@ -17117,6 +17122,15 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         i.focus();
         i.select();
       }
+    };
+    $('#listBk').onclick = function () {
+      listUI = 'bk';
+      renderRes();
+      const s = $('#bkSel');
+      if (s) s.focus();
+    };
+    $('#listRs').onclick = function () {
+      pickRestoreFile();
     };
     const dl = $('#listDel');
     if (dl)
@@ -17182,6 +17196,292 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         renderRes();
       };
     }
+    if ($('#bkGo')) {
+      const sel = $('#bkSel');
+      sel.onchange = function () {
+        const l = lists.items.find(function (x) {
+          return x.id === sel.value;
+        });
+        const inp = $('#bkName');
+        if (l && inp) inp.value = suggestBkName(l);
+      };
+      $('#bkGo').onclick = doBackup;
+      $('#bkNo').onclick = function () {
+        listUI = null;
+        renderRes();
+      };
+    }
+    if ($('#rsOk')) {
+      $('#rsOk').onclick = function () {
+        listUI = null;
+        renderRes();
+      };
+    }
+    if ($('#rsReplace')) {
+      $('#rsReplace').onclick = function () {
+        const c = rsInfo.conflict;
+        rsInfo = { msg: '', conflict: null };
+        importBackup(c.data, c.existingId, false);
+      };
+      $('#rsKeep').onclick = function () {
+        const c = rsInfo.conflict;
+        rsInfo = { msg: '', conflict: null };
+        importBackup(c.data, null, true);
+      };
+      $('#rsNo').onclick = function () {
+        rsInfo = { msg: '', conflict: null };
+        listUI = null;
+        renderRes();
+      };
+    }
+  }
+  /* ---------- Sao lưu / khôi phục một đợt ---------- */
+  /* File sao lưu là JSON: đáp án + thang điểm + danh sách thí sinh + toàn bộ bài đã chấm của đợt đã chọn.
+     Ảnh phiếu không kèm theo (nặng, mỗi ảnh vài trăm KB). */
+  function normName(s) {
+    return (
+      String(s || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\u0111/gi, 'd')
+        .replace(/[^A-Za-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .toLowerCase() || 'dot'
+    );
+  }
+  function suggestBkName(l) {
+    const d = new Date();
+    const ymd =
+      d.getFullYear() +
+      '-' +
+      String(d.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      String(d.getDate()).padStart(2, '0');
+    return 'tcv-mark-saoluu-' + normName(l && l.name) + '-' + ymd;
+  }
+  function bkPanelHTML() {
+    const L = lists.items;
+    return (
+      '<div class="listrow"><label class="lbl" for="bkSel">Sao lưu đợt</label><select id="bkSel">' +
+      L.map(function (l) {
+        return (
+          '<option value="' +
+          l.id +
+          '"' +
+          (l.id === lists.active ? ' selected' : '') +
+          '>' +
+          esc(l.name) +
+          ' (' +
+          listRes(l.id).length +
+          ' bài)</option>'
+        );
+      }).join('') +
+      '</select></div>' +
+      '<div class="listrow"><input id="bkName" maxlength="60" value="' +
+      esc(suggestBkName(curList())) +
+      '"><button type="button" class="btn small primary" id="bkGo">Tải file sao lưu</button><button type="button" class="btn small ghost" id="bkNo">Huỷ</button></div>' +
+      '<div class="hint" id="bkMsg">File sao lưu (.json) chứa đáp án, thang điểm, danh sách thí sinh và toàn bộ bài đã chấm của đợt đã chọn. Ảnh phiếu không kèm theo.</div>'
+    );
+  }
+  function rsPanelHTML() {
+    let h = '<div class="hint" id="rsMsg">' + esc(rsInfo.msg || '') + '</div>';
+    if (rsInfo.conflict) {
+      h +=
+        '<div class="listrow"><button type="button" class="btn small primary" id="rsReplace">Thay thế đợt cũ</button><button type="button" class="btn small" id="rsKeep">Giữ cả hai</button><button type="button" class="btn small ghost" id="rsNo">Huỷ</button></div>';
+    } else {
+      h += '<div class="listrow"><button type="button" class="btn small primary" id="rsOk">Đóng</button></div>';
+    }
+    return h;
+  }
+  async function doBackup() {
+    const sel = $('#bkSel'),
+      inp = $('#bkName'),
+      msg = $('#bkMsg');
+    const l = sel && lists.items.find(function (x) {
+      return x.id === sel.value;
+    });
+    if (!l) return;
+    let name = inp ? (inp.value || '').trim().replace(/\.json$/i, '') : '';
+    if (!name) name = suggestBkName(l);
+    const data = {
+      app: 'TCV Mark',
+      kind: 'batch-backup',
+      version: 1,
+      savedAt: new Date().toISOString(),
+      list: {
+        id: l.id,
+        name: l.name,
+        cfg: l.cfg,
+        students: (l.students || []).map(function (s) {
+          return Object.assign({}, s);
+        })
+      },
+      results: listRes(l.id).map(function (r) {
+        return Object.assign({}, r);
+      })
+    };
+    let st = 'unavailable';
+    try {
+      st = await saveFile(name + '.json', new Blob([JSON.stringify(data)], { type: 'application/json' }));
+    } catch (e) {
+      st = 'unavailable';
+    }
+    if (!msg) return;
+    if (st === 'saved')
+      msg.textContent =
+        'Đã lưu file "' + name + '.json" (' + data.results.length + ' bài). File nằm trong thư mục Tải về của máy.';
+    else if (st === 'declined') msg.textContent = 'Bạn đã huỷ lưu. Nhấn lại nút để tải.';
+    else msg.textContent = 'Chế độ xem này không cho tải file.';
+  }
+  function pickRestoreFile() {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.json,application/json';
+    inp.onchange = function () {
+      const f = inp.files && inp.files[0];
+      if (!f) return;
+      const rd = new FileReader();
+      rd.onload = function () {
+        handleRestoreText(rd.result);
+      };
+      rd.onerror = function () {
+        showRs('Không đọc được file này. Hãy chọn lại file sao lưu của TCV Mark.');
+      };
+      rd.readAsText(f);
+    };
+    inp.click();
+  }
+  function showRs(msg) {
+    rsInfo = { msg: msg, conflict: null };
+    listUI = 'rs';
+    renderRes();
+  }
+  function handleRestoreText(txt) {
+    let data = null;
+    try {
+      data = JSON.parse(txt);
+    } catch (e) {
+      data = null;
+    }
+    if (
+      !data ||
+      data.app !== 'TCV Mark' ||
+      data.kind !== 'batch-backup' ||
+      !data.list ||
+      typeof data.list.name !== 'string' ||
+      !Array.isArray(data.results)
+    ) {
+      showRs('File này không phải file sao lưu của TCV Mark. Hãy chọn file sao lưu đã tải từ app (đuôi .json).');
+      return;
+    }
+    const name = data.list.name;
+    const ex = lists.items.find(function (l) {
+      return l.name === name;
+    });
+    if (ex) {
+      rsInfo = {
+        msg:
+          'Đã có đợt "' +
+          name +
+          '" trong máy (' +
+          listRes(ex.id).length +
+          ' bài). Chọn “Thay thế đợt cũ” để ghi đè bằng file sao lưu, hoặc “Giữ cả hai” để thêm đợt khôi phục riêng.',
+        conflict: { data: data, existingId: ex.id }
+      };
+      listUI = 'rs';
+      renderRes();
+      return;
+    }
+    importBackup(data, null, false);
+  }
+  function uniqueListName(base) {
+    let n = base,
+      i = 2;
+    while (
+      lists.items.some(function (l) {
+        return l.name === n;
+      })
+    ) {
+      n = base + ' (' + i + ')';
+      i++;
+    }
+    return n;
+  }
+  function freshResId(used) {
+    let id;
+    do {
+      id = Date.now() + Math.floor(Math.random() * 1000);
+    } while (used.has(String(id)));
+    return id;
+  }
+  function importBackup(data, existingId, keepBoth) {
+    const src = data.list;
+    const cfg = sanitizeCfg(src.cfg) || defaultCfg();
+    const used = new Set(
+      results.map(function (r) {
+        return String(r.id);
+      })
+    );
+    let id,
+      name = String(src.name);
+    if (existingId) {
+      id = existingId;
+      const newIds = new Set(
+        (data.results || []).map(function (r) {
+          return String(r && r.id);
+        })
+      );
+      listRes(id).forEach(function (r) {
+        if (!newIds.has(String(r.id))) {
+          IMG.del(r.id);
+          IMG.del(r.id + 'n');
+        }
+      });
+      results = results.filter(function (r) {
+        return lidOf(r) !== id;
+      });
+      const item = lists.items.find(function (x) {
+        return x.id === id;
+      });
+      if (item) {
+        item.cfg = cfg;
+        item.students = Array.isArray(src.students) ? src.students : [];
+      }
+    } else {
+      id =
+        src.id &&
+        !lists.items.some(function (x) {
+          return x.id === src.id;
+        })
+          ? src.id
+          : 'l' + Date.now().toString(36);
+      if (keepBoth) name = uniqueListName(String(src.name) + ' (khôi phục)');
+      lists.items.push({
+        id: id,
+        name: name,
+        cfg: cfg,
+        students: Array.isArray(src.students) ? src.students : []
+      });
+    }
+    const regen = !existingId;
+    const imported = (data.results || [])
+      .filter(function (r) {
+        return r && typeof r === 'object';
+      })
+      .map(function (r) {
+        const c = Object.assign({}, r);
+        c.lid = id;
+        if (regen) c.id = freshResId(used);
+        used.add(String(c.id));
+        return c;
+      });
+    results = results.concat(imported);
+    saveLists();
+    saveResults();
+    applyList(id);
+    rsInfo = { msg: 'Đã khôi phục đợt "' + name + '" (' + imported.length + ' bài).', conflict: null };
+    listUI = 'rs';
+    renderRes();
   }
   function renderRes() {
     renderListBar();
