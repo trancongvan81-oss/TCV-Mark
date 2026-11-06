@@ -744,29 +744,48 @@ canvas.photo {
 .lrow {
   margin-top: 10px;
 }
-.lrow .linputs {
+.llines {
   display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 6px;
   margin-top: 4px;
 }
-.lrow .linputs label {
+.llines label {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   font-size: 13px;
 }
-.lrow .linputs .num-in {
-  width: 56px;
+.llines .num-in {
+  width: 64px;
   min-height: 36px;
-}
-.lrow .lfixed {
-  font-size: 13px;
-  color: var(--muted);
 }
 .lrow .chips {
   margin-top: 6px;
+}
+/* Công tắc Bật/Tắt phần */
+.prow.off {
+  opacity: 0.45;
+}
+.ptitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ptoggle {
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ptoggle[aria-pressed="false"] {
+  background: var(--card);
+  color: var(--muted);
 }
 .fields.one {
   grid-template-columns: 1fr;
@@ -13731,6 +13750,8 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       n1: 18,
       n2: 4,
       n3: 6,
+      prevN2: 4,
+      prevN3: 6,
       p1: 0.25,
       p2: 1,
       p3: 0.25,
@@ -13796,6 +13817,8 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         n1: clampN(c.n1, 0, mx.MAX1),
         n2: clampN(c.n2, 0, mx.MAX2),
         n3: clampN(c.n3, 0, mx.MAX3),
+        prevN2: c.prevN2 ? clampN(c.prevN2, 1, mx.MAX2) : 4,
+        prevN3: c.prevN3 ? clampN(c.prevN3, 1, mx.MAX3) : 6,
         p1: clampP(c.p1, 0.25),
         p2: clampP(c.p2, 1),
         p3: clampP(c.p3, 0.25),
@@ -14113,19 +14136,24 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     }
     return h + '</div>';
   }
-  function stepperHTML(id, val, label) {
+  function stepperHTML(id, val, label, dis) {
+    const d = dis ? ' disabled' : '';
     return (
       '<span class="stepper"><button type="button" data-step="' +
       id +
       '" data-d="-1" aria-label="Bớt ' +
       label +
-      '">−</button><output>' +
+      '"' +
+      d +
+      '>−</button><output>' +
       val +
       '</output><button type="button" data-step="' +
       id +
       '" data-d="1" aria-label="Thêm ' +
       label +
-      '">+</button></span>'
+      '"' +
+      d +
+      '>+</button></span>'
     );
   }
 
@@ -14135,42 +14163,30 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     const ver = curVer(),
       tot = maxTotal();
     let h =
-      '<div class="row"><h2>Cấu trúc đề</h2><span class="hint">Số câu mỗi phần</span></div>' +
-      '<div class="chips" role="group" aria-label="Mẫu có sẵn">';
-    presetsNow().forEach(function (p, i) {
-      const on =
-        p.n1 === cfg.n1 &&
-        p.n2 === cfg.n2 &&
-        p.n3 === cfg.n3 &&
-        p.p1 === cfg.p1 &&
-        p.p2 === cfg.p2 &&
-        p.p3 === cfg.p3;
-      h +=
-        '<button type="button" class="vchip" data-preset="' +
-        i +
-        '" aria-pressed="' +
-        on +
-        '">' +
-        p.n1 +
-        ' · ' +
-        p.n2 +
-        ' · ' +
-        p.n3 +
-        '</button>';
-    });
-    h += '</div><div class="prow head"><span></span><span>Số câu</span><span>Điểm</span></div>';
-    [
-      ['n1', 'p1', 'Phần I', 'Trắc nghiệm A–D', MAX1, 'mỗi câu'],
-      ['n2', 'p2', 'Phần II', 'Đúng / sai 4 ý', MAX2, 'tối đa mỗi câu'],
-      ['n3', 'p3', 'Phần III', 'Trả lời ngắn, điền số', MAX3, 'mỗi câu']
-    ].forEach(function (r) {
-      h +=
-        '<div class="prow"><span class="pl"><b>' +
+      '<div class="row"><h2>Cấu trúc đề</h2><span class="hint">Số câu mỗi phần</span></div>';
+    const lad = cfg.tfLadder || TF_LADDER;
+    const partRow = function (r, toggleKey) {
+      const off = toggleKey && cfg[r[0]] === 0;
+      const dis = off ? ' disabled' : '';
+      return (
+        '<div class="prow' +
+        (off ? ' off' : '') +
+        '"><span class="pl"><span class="ptitle"><b>' +
         r[2] +
-        '</b><small>' +
+        '</b>' +
+        (toggleKey
+          ? '<button type="button" class="ptoggle" data-part-toggle="' +
+            toggleKey +
+            '" aria-pressed="' +
+            !off +
+            '">' +
+            (off ? 'Đã tắt' : 'Đang bật') +
+            '</button>'
+          : '') +
+        '</span><small>' +
         r[3] +
         '</small></span>' +
-        stepperHTML(r[0], cfg[r[0]], 'một câu ' + r[2]) +
+        stepperHTML(r[0], cfg[r[0]], 'một câu ' + r[2], off) +
         '<input class="num-in" data-pts="' +
         r[1] +
         '" inputmode="decimal" value="' +
@@ -14179,45 +14195,55 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         r[5] +
         ' của ' +
         r[2] +
-        '"></div>';
-    });
-    const lad = cfg.tfLadder || TF_LADDER;
-    h +=
-      '<div class="lrow"><span class="lbl">Thang điểm Phần II</span><div class="linputs">' +
-      [0, 1, 2]
-        .map(function (i) {
-          return (
-            '<label>' +
-            (i + 1) +
-            ' ý <input class="num-in" data-ladder="' +
-            i +
-            '" inputmode="decimal" value="' +
-            fmt(lad[i + 1] * cfg.p2) +
-            '" aria-label="Thang điểm Phần II, đúng ' +
-            (i + 1) +
-            ' ý, tính bằng điểm"></label>'
-          );
-        })
-        .join('') +
-      '<span class="lfixed">4 ý = ' +
-      fmt(cfg.p2) +
-      '</span></div>' +
-      '<div class="chips"><button type="button" class="vchip" data-ladder-preset="bo">Thang Bộ</button>' +
-      '<button type="button" class="vchip" data-ladder-preset="even">Thang đều</button></div>' +
-      '<p class="hint">Nhập điểm cho mỗi mức đúng, tối đa ' +
-      fmt(cfg.p2) +
-      ' điểm (bằng điểm của câu Phần II); đổi thang sẽ chấm lại toàn bộ bài trong đợt đang chọn.</p></div>';
+        '"' +
+        dis +
+        '></div>'
+      );
+    };
+    h += '</div><div class="prow head"><span></span><span>Số câu</span><span>Điểm</span></div>';
+    h += partRow(['n1', 'p1', 'Phần I', 'Trắc nghiệm A–D', MAX1, 'mỗi câu']);
+    h += partRow(['n2', 'p2', 'Phần II', 'Đúng / sai 4 ý', MAX2, 'tối đa mỗi câu'], 'n2');
+    if (cfg.n2 > 0) {
+      h +=
+        '<div class="lrow"><span class="lbl">Điểm Phần II theo số ý đúng</span><div class="llines">' +
+        [0, 1, 2, 3]
+          .map(function (i) {
+            return (
+              '<label>Đúng ' +
+              (i + 1) +
+              ' ý <input class="num-in" data-ladder="' +
+              i +
+              '" inputmode="decimal" value="' +
+              fmt(i === 3 ? cfg.p2 : lad[i + 1] * cfg.p2) +
+              '" aria-label="Điểm Phần II, đúng ' +
+              (i + 1) +
+              ' ý, tính bằng điểm"> điểm</label>'
+            );
+          })
+          .join('') +
+        '</div>' +
+        '<div class="chips"><button type="button" class="vchip" data-ladder-preset="bo">Thang Bộ</button>' +
+        '<button type="button" class="vchip" data-ladder-preset="even">Thang đều</button></div>' +
+        '<p class="hint">Nhập điểm cho mỗi mức đúng, tối đa ' +
+        fmt(cfg.p2) +
+        ' điểm (bằng điểm của câu Phần II); dòng “Đúng 4 ý” chính là điểm của câu. Đổi thang sẽ chấm lại toàn bộ bài trong đợt đang chọn.</p></div>';
+    }
+    h += partRow(['n3', 'p3', 'Phần III', 'Trả lời ngắn, điền số', MAX3, 'mỗi câu'], 'n3');
     h +=
       '<p class="hint">Tổng điểm tối đa <b class="mono">' +
       fmt(tot) +
-      '</b>. Phần II tính theo số ý đúng trong câu: 1 ý được ' +
-      Math.round(lad[1] * 100) +
-      '%, 2 ý ' +
-      Math.round(lad[2] * 100) +
-      '%, 3 ý ' +
-      Math.round(lad[3] * 100) +
-      '%, 4 ý 100% ' +
-      'điểm tối đa của câu.</p>' +
+      '</b>' +
+      (cfg.n2 > 0
+        ? '. Phần II tính theo số ý đúng trong câu: 1 ý được ' +
+          Math.round(lad[1] * 100) +
+          '%, 2 ý ' +
+          Math.round(lad[2] * 100) +
+          '%, 3 ý ' +
+          Math.round(lad[3] * 100) +
+          '%, 4 ý 100% ' +
+          'điểm tối đa của câu.'
+        : '.') +
+      '</p>' +
       '<div class="range-row"><div class="row"><label class="lbl" for="thrIn">Độ nhạy khi đọc ô ' +
       'tô</label><span class="mono" id="thrVal">' +
       Math.round(cfg.thr * 100) +
@@ -14227,10 +14253,18 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       '"><div class="range-lbls"><span>Nhạy, nhận cả nét mờ</span><span>Chặt, chỉ nhận ô tô ' +
       'đậm</span></div></div>';
     $('#cfgCard').innerHTML = h;
-    $$('[data-preset]', $('#cfgCard')).forEach(function (b) {
+    $$('[data-part-toggle]', $('#cfgCard')).forEach(function (b) {
       b.onclick = function () {
-        const p = presetsNow()[+b.dataset.preset];
-        Object.assign(cfg, p);
+        const k = b.dataset.partToggle,
+          prevKey = k === 'n2' ? 'prevN2' : 'prevN3',
+          lim = k === 'n2' ? MAX2 : MAX3,
+          def = k === 'n2' ? 4 : 6;
+        if (cfg[k] > 0) {
+          cfg[prevKey] = cfg[k];
+          cfg[k] = 0;
+        } else {
+          cfg[k] = Math.min(cfg[prevKey] || def, lim);
+        }
         afterCfg();
       };
     });
@@ -14258,6 +14292,11 @@ function renderPhoto(sheetImg, cfg, marks, o) {
           if (isFinite(x))
             lad[k + 1] = Math.round((Math.max(0, Math.min(p2, x)) / p2) * 10000) / 10000;
         });
+        const el3 = document.querySelector('#cfgCard [data-ladder="3"]');
+        if (el3) {
+          const x3 = +String(el3.value).replace(',', '.');
+          if (isFinite(x3)) cfg.p2 = clampP(x3, cfg.p2);
+        }
         for (let k = 2; k <= 3; k++) if (lad[k] < lad[k - 1]) lad[k] = lad[k - 1];
         lad[4] = 1;
         cfg.tfLadder = lad;
