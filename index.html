@@ -747,6 +747,7 @@ canvas.photo {
 .llines {
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: 6px;
   margin-top: 4px;
 }
@@ -762,6 +763,7 @@ canvas.photo {
 }
 .lrow .chips {
   margin-top: 6px;
+  justify-content: flex-end;
 }
 /* Công tắc Bật/Tắt phần */
 .prow.off {
@@ -14167,6 +14169,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     const lad = cfg.tfLadder || TF_LADDER;
     const partRow = function (r, toggleKey) {
       const off = toggleKey && cfg[r[0]] === 0;
+      const showToggle = toggleKey && r[4] > 0;
       const dis = off ? ' disabled' : '';
       return (
         '<div class="prow' +
@@ -14174,7 +14177,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         '"><span class="pl"><span class="ptitle"><b>' +
         r[2] +
         '</b>' +
-        (toggleKey
+        (showToggle
           ? '<button type="button" class="ptoggle" data-part-toggle="' +
             toggleKey +
             '" aria-pressed="' +
