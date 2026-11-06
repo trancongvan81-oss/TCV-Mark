@@ -13687,27 +13687,13 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       this.closePath();
     };
   /* ---------- Cấu hình & dữ liệu ---------- */
-  const PRESETS_F = [
-    { n1: 12, n2: 4, n3: 6, p1: 0.25, p2: 1, p3: 0.5 },
-    { n1: 24, n2: 4, n3: 6, p1: 0.125, p2: 1, p3: 0.5 },
-    { n1: 18, n2: 4, n3: 6, p1: 0.25, p2: 1, p3: 0.25 },
-    { n1: 40, n2: 0, n3: 0, p1: 0.25, p2: 0, p3: 0 }
-  ];
-  const PRESETS_M = [
-    { n1: 12, n2: 4, n3: 4, p1: 0.25, p2: 1, p3: 0.75 },
-    { n1: 12, n2: 0, n3: 0, p1: 0.5, p2: 0, p3: 0 },
-    { n1: 8, n2: 2, n3: 2, p1: 0.25, p2: 1, p3: 0.5 }
-  ];
-  const PRESETS_E = [
-    { n1: 40, n2: 0, n3: 0, p1: 0.25, p2: 0, p3: 0 },
-    { n1: 30, n2: 0, n3: 0, p1: 1 / 3, p2: 0, p3: 0 },
-    { n1: 20, n2: 0, n3: 0, p1: 0.5, p2: 0, p3: 0 }
-  ];
-  const presetsFor = function (id) {
-    return id === 'm' ? PRESETS_M : id === 'e' ? PRESETS_E : PRESETS_F;
-  };
-  const presetsNow = function () {
-    return presetsFor(cfg && cfg.sheet);
+  /* Cấu trúc mặc định khi chuyển sang loại phiếu chưa có dữ liệu lưu. Chỉ có một mặc định
+     cho mỗi loại phiếu, không phải bảng mẫu để tra: nhập đáp án không bao giờ đổi cấu trúc
+     hay điểm đã chốt, nên không cần tra mẫu nào cả. */
+  const DEFAULT_STRUCT = {
+    f: { n1: 12, n2: 4, n3: 6, p1: 0.25, p2: 1, p3: 0.5 },
+    m: { n1: 12, n2: 4, n3: 4, p1: 0.25, p2: 1, p3: 0.75 },
+    e: { n1: 40, n2: 0, n3: 0, p1: 0.25, p2: 0, p3: 0 }
   };
   function emptyVer(code) {
     return {
@@ -13989,7 +13975,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     cfg.thr = cfg.thrs[id] || 0.08;
     cfg.structs = cfg.structs || {};
     cfg.structs[prevId] = { n1: cfg.n1, n2: cfg.n2, n3: cfg.n3, p1: cfg.p1, p2: cfg.p2, p3: cfg.p3 };
-    const st = cfg.structs[id] || (id === 'm' ? PRESETS_M[0] : id === 'e' ? PRESETS_E[0] : PRESETS_F[0]);
+    const st = cfg.structs[id] || DEFAULT_STRUCT[id];
     cfg.n1 = Math.min(st.n1, MAX1);
     cfg.n2 = Math.min(st.n2, MAX2);
     cfg.n3 = Math.min(st.n3, MAX3);
@@ -18802,11 +18788,13 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     if (s === '' || s === '?' || s === '-') return '-';
     return s === 'Đ' ? 'D' : s;
   }
-  /* Thử xếp các đáp án vào cấu trúc của một loại phiếu: trả về { n1, n2, exact } hoặc { error }. */
+  /* Thử xếp các đáp án vào cấu trúc của loại phiếu đang chọn: trả về { n1, n2, cur, multi }
+     hoặc { error: 'sheet' }. Chỉ xét loại phiếu đang chọn — đáp án không vừa thì báo lỗi
+     để giáo viên quay lại chọn đúng loại phiếu, app không tự chuyển loại phiếu. cur = true
+     khi cấu trúc suy ra trùng đúng số câu giáo viên đã nhập lúc tạo bài. */
   function qrStructure(P, L, N3, sheetId) {
-    const mx = SHEETS[sheetId],
-      pres = presetsFor(sheetId);
-    if (N3 > mx.MAX3) return { error: 'toomany' };
+    const mx = SHEETS[sheetId];
+    if (N3 > mx.MAX3 || L > mx.MAX1 + 4 * mx.MAX2) return { error: 'sheet' };
     let fsMin = L,
       lcMax = -1;
     P.forEach(function (p) {
@@ -18821,18 +18809,18 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       if (n1 < 0 || n1 > mx.MAX1 || n1 > fsMin || n1 <= lcMax) continue;
       cands.push({ n1: n1, n2: n2 });
     }
-    if (!cands.length) return { error: 'structure' };
-    let best = null;
-    cands.forEach(function (c) {
-      const isPreset = pres.some(function (p) {
-        return p.n1 === c.n1 && p.n2 === c.n2 && p.n3 === N3;
-      });
-      const isCur = sheetId === cfg.sheet && c.n1 === cfg.n1 && c.n2 === cfg.n2 && N3 === cfg.n3;
-      const sc = (isPreset ? 0 : isCur ? 100 : 200) + Math.abs(c.n2 - 4);
-      if (!best || sc < best.sc) best = { n1: c.n1, n2: c.n2, sc: sc, exact: isPreset };
+    if (!cands.length) return { error: 'sheet' };
+    const cur = cands.find(function (c) {
+      return c.n1 === cfg.n1 && c.n2 === cfg.n2 && N3 === cfg.n3;
     });
-    best.multi = cands.length > 1;
-    return best;
+    if (cur) return { n1: cur.n1, n2: cur.n2, cur: true, multi: cands.length > 1 };
+    /* Số câu suy ra không trùng số câu đã nhập: chọn ứng viên gần cấu trúc thường gặp nhất
+       để báo lỗi cho giáo viên xem lại. */
+    let best = cands[0];
+    cands.forEach(function (c) {
+      if (Math.abs(c.n2 - 4) < Math.abs(best.n2 - 4)) best = c;
+    });
+    return { n1: best.n1, n2: best.n2, cur: false, multi: cands.length > 1 };
   }
   /* Mỗi mã đề là một dòng: [mã đề, đáp án Phần I (A–D), đáp án Phần II (D = đúng, S = sai, mỗi câu 4 ý),
      đáp án Phần III (số)]. Số 0 ở Phần I, II là câu lỗi (ai cũng được điểm), ô trống là câu không chấm.
@@ -18941,62 +18929,51 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       })
     )
       return { error: 'inconsistent' };
-    const order = [cfg.sheet].concat(
-      ['m', 'f', 'e'].filter(function (id) {
-        return id !== cfg.sheet;
-      })
-    );
-    let firstErr = null;
-    const fits = [];
-    order.forEach(function (id) {
-      const s = qrStructure(P, L, N3, id);
-      if (s.error) {
-        if (!firstErr) firstErr = s.error;
-      } else fits.push(Object.assign(s, { sheet: id }));
-    });
-    if (!fits.length) return { error: firstErr || 'structure' };
-    /* Mẫu đang chọn được giữ nguyên khi chứa vừa cấu trúc này; chỉ chuyển sang mẫu khác khi mẫu
-       đang chọn không chứa vừa. (Mẫu F là mẫu chuẩn; không tự chuyển mẫu chỉ vì cấu trúc cũng
-       khớp mẫu sẵn của mẫu khác.) */
-    const best = fits[0];
-    const warnings = [];
-    if (best.sheet !== cfg.sheet)
-      warnings.push(
-        'Cấu trúc ' +
-          best.n1 +
-          ' · ' +
-          best.n2 +
-          ' · ' +
+    /* Chỉ xét loại phiếu đang chọn. Đáp án không vừa loại phiếu thì báo lỗi để giáo viên quay
+       lại chọn đúng loại phiếu; số câu suy ra không trùng số câu đã nhập thì báo lỗi để giáo
+       viên sửa số câu. App không tự chuyển loại phiếu, không tự đổi số câu hay điểm. */
+    const mx = SHEETS[cfg.sheet],
+      s = qrStructure(P, L, N3, cfg.sheet);
+    if (s.error) {
+      const shName = mx.name || cfg.sheet;
+      return {
+        error: 'sheet',
+        title: 'Đáp án không vừa loại phiếu ' + shName + ' đã chọn.',
+        body:
+          'Đáp án này có ' +
+          L +
+          ' đáp án chữ (Phần I + Phần II) và ' +
           N3 +
-          ' khớp với ' +
-          SHEETS[best.sheet].name +
-          ', app đã chuyển sang loại phiếu này.'
-      );
-    else {
-      const otherExact = fits.find(function (f) {
-        return f.sheet !== cfg.sheet && f.exact;
-      });
-      if (otherExact)
-        warnings.push(
-          'Cấu trúc ' +
-            best.n1 +
-            ' · ' +
-            best.n2 +
-            ' · ' +
-            N3 +
-            ' cũng khớp với ' +
-            SHEETS[otherExact.sheet].name +
-            '. Nếu phiếu in ra là mẫu đó thì chuyển Loại phiếu sang mẫu đó trước khi chấm.'
-        );
+          ' câu Phần III, nhưng phiếu ' +
+          shName +
+          ' chỉ chứa tối đa ' +
+          (mx.MAX1 + 4 * mx.MAX2) +
+          ' đáp án chữ và ' +
+          mx.MAX3 +
+          ' câu Phần III. Quay lại chọn đúng loại phiếu theo phiếu học sinh đã tô rồi nhập lại đáp án.'
+      };
     }
-    if (best.multi)
-      warnings.push(
-        'Cấu trúc đề có thể hiểu theo nhiều cách, app chọn ' +
-          best.n1 +
-          ' câu Phần I và ' +
-          best.n2 +
-          ' câu Phần II. Kiểm tra lại ở mục Cấu trúc đề.'
-      );
+    if (!s.cur)
+      return {
+        error: 'counts',
+        title: 'Đáp án không khớp với số câu đã nhập.',
+        body:
+          'Đáp án có ' +
+          s.n1 +
+          ' câu Phần I, ' +
+          s.n2 +
+          ' câu Phần II, ' +
+          N3 +
+          ' câu Phần III, nhưng bài chấm đang đặt ' +
+          cfg.n1 +
+          ' · ' +
+          cfg.n2 +
+          ' · ' +
+          cfg.n3 +
+          ' câu. Kiểm tra lại số câu đã nhập lúc tạo bài rồi nhập lại đáp án.'
+      };
+    const best = s;
+    const warnings = [];
     if (faulty.length) {
       const ex = faulty.slice(0, 3).map(function (f) {
         return (
@@ -19050,7 +19027,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       n1: best.n1,
       n2: best.n2,
       n3: N3,
-      sheet: best.sheet,
+      sheet: cfg.sheet,
       warnings: warnings,
       total: P.length
     };
@@ -19159,10 +19136,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     else if (qrState.kind === 'error')
       h += '<div class="note err"><b>' + esc(qrState.title) + '</b><br>' + esc(qrState.body) + '</div>';
     else if (qrState.kind === 'preview') {
-      const r = qrState.res,
-        pr = presetsNow().find(function (p) {
-          return p.n1 === r.n1 && p.n2 === r.n2 && p.n3 === r.n3;
-        });
+      const r = qrState.res;
       h +=
         '<div class="qrprev"><div><b>Đọc được ' +
         r.total +
@@ -19181,27 +19155,13 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         r.n3 +
         ' câu</span></div>' +
         '<p class="hint">' +
-        (pr
-          ? 'Điểm sẽ đặt theo mẫu ' +
-            pr.n1 +
-            ' · ' +
-            pr.n2 +
-            ' · ' +
-            pr.n3 +
-            ': ' +
-            fmt(pr.p1) +
-            ' điểm mỗi câu Phần I, tối đa ' +
-            fmt(pr.p2) +
-            ' mỗi câu Phần II, ' +
-            fmt(pr.p3) +
-            ' mỗi câu Phần III.'
-          : 'Điểm giữ nguyên như đang đặt (' +
-            fmt(cfg.p1) +
-            ' · ' +
-            fmt(cfg.p2) +
-            ' · ' +
-            fmt(cfg.p3) +
-            '). Chỉnh ở mục Cấu trúc đề nếu cần.') +
+        'Điểm giữ nguyên như đang đặt (' +
+        fmt(cfg.p1) +
+        ' · ' +
+        fmt(cfg.p2) +
+        ' · ' +
+        fmt(cfg.p3) +
+        '). Chỉnh ở mục Cấu trúc đề nếu cần.' +
         ' Các mã đề đã có được giữ lại; mã đề nào trùng số thì được cập nhật, mã mới được thêm ' +
         'vào. Quét tiếp mã QR khác để thêm nữa.</p>' +
         r.warnings
@@ -19284,21 +19244,19 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       'Không nhận ra bảng đáp án trong file này.',
       'Hàng đầu cần có các mã đề (ví dụ 0101, 0102…), cột đầu là số câu, các ô bên dưới là đáp án.'
     ],
-    toomany: [
-      'Phần III trong mã QR có nhiều câu hơn mọi loại phiếu hiện có.',
-      'Phiếu có ô tô cho tối đa ' + Math.max(SHEET_F.MAX3, SHEET_E.MAX3, SHEET_M.MAX3) + ' câu Phần III.'
+    sheet: [
+      'Đáp án không vừa loại phiếu đã chọn.',
+      'Quay lại chọn đúng loại phiếu theo phiếu học sinh đã tô rồi nhập lại đáp án.'
     ],
-    structure: [
-      'Không suy ra được số câu của từng phần.',
-      'Tổng số đáp án không khớp với cấu trúc của phiếu nào (Phần II mỗi câu 4 ý; Phần I tối đa ' +
-        Math.max(SHEET_F.MAX1, SHEET_E.MAX1, SHEET_M.MAX1) +
-        ' câu).'
+    counts: [
+      'Đáp án không khớp với số câu đã nhập.',
+      'Kiểm tra lại số câu đã nhập lúc tạo bài rồi nhập lại đáp án.'
     ]
   };
   function qrFromText(text, fromPaste) {
     const r = parseQrKey(text);
     if (r.error) {
-      const m = QR_ERR[r.error] || QR_ERR.shape;
+      const m = r.title ? [r.title, r.body] : QR_ERR[r.error] || QR_ERR.shape;
       qrState = { kind: 'error', title: m[0], body: m[1] };
     } else {
       qrState = { kind: 'preview', res: r };
@@ -19355,7 +19313,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       }
       const r = parseKeyRows(tbl.rows);
       if (r.error) {
-        const m = QR_ERR[r.error] || QR_ERR.xshape;
+        const m = r.title ? [r.title, r.body] : QR_ERR[r.error] || QR_ERR.xshape;
         return fail(m[0], m[1]);
       }
       qrState = { kind: 'preview', res: r };
@@ -19626,38 +19584,10 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     const r = qrState.res;
     if (!r) return;
     qrUndo = JSON.parse(JSON.stringify(cfg));
-    if (r.sheet && r.sheet !== cfg.sheet) switchSheet(r.sheet);
-    cfg.n1 = r.n1;
-    cfg.n2 = r.n2;
-    cfg.n3 = r.n3;
-    const pr = presetsNow().find(function (p) {
-      return p.n1 === r.n1 && p.n2 === r.n2 && p.n3 === r.n3;
-    });
-    if (pr) {
-      cfg.p1 = pr.p1;
-      cfg.p2 = pr.p2;
-      cfg.p3 = pr.p3;
-    } else {
-      /* Không có mẫu sẵn cho cấu trúc mới trên phiếu đang chọn: giữ nguyên tỉ lệ điểm giữa
-         các phần, co giãn để tổng tối đa vẫn là 10 (mẫu F là mẫu chuẩn; không còn mẫu S để
-         lấy điểm sẵn). Làm tròn 2 chữ số rồi bù phần dư vào phần cuối để tổng đúng 10. */
-      const tot0 = r.n1 * cfg.p1 + r.n2 * cfg.p2 + r.n3 * cfg.p3;
-      if (tot0 > 0) {
-        const k = 10 / tot0,
-          r2 = function (x) {
-            return Math.round(x * 100) / 100;
-          };
-        cfg.p1 = r2(cfg.p1 * k);
-        cfg.p2 = r2(cfg.p2 * k);
-        cfg.p3 = r2(cfg.p3 * k);
-        const diff = r2(10 - (r.n1 * cfg.p1 + r.n2 * cfg.p2 + r.n3 * cfg.p3));
-        if (diff !== 0) {
-          if (r.n3 > 0) cfg.p3 = r2(cfg.p3 + diff / r.n3);
-          else if (r.n2 > 0) cfg.p2 = r2(cfg.p2 + diff / r.n2);
-          else cfg.p1 = r2(cfg.p1 + diff / r.n1);
-        }
-      }
-    }
+    /* Nhập đáp án chỉ nạp đáp án vào để chấm. Loại phiếu, số câu và điểm giáo viên đã chốt
+       lúc tạo bài được giữ nguyên tuyệt đối: không tự chuyển loại phiếu, không đổi số câu,
+       không tra mẫu sẵn, không co giãn điểm về tổng 10. (parseKeyRows đã kiểm tra đáp án
+       vừa loại phiếu và khớp số câu đã nhập trước khi tới đây.) */
     let added = 0,
       updated = 0,
       first = -1;
