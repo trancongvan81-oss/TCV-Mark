@@ -1453,8 +1453,8 @@ h3.ph {
 .ql-msg { font-size: 15px; text-align: center; }
 .ql-msg.warn { color: #ffd166; }
 
-/* Màn hình lớn (máy tính): mở rộng cột nội dung cho đỡ trống hai bên; điện thoại giữ nguyên */
-@media (min-width: 900px) {
+/* Màn hình lớn (máy tính, dùng chuột): mở rộng cột nội dung cho đỡ trống hai bên; điện thoại/máy tính bảng cảm ứng giữ nguyên cỡ gốc của tác giả */
+@media (min-width: 900px) and (pointer: fine) {
   .wrap { max-width: 1020px; }
   .tabs > div { max-width: 1020px; }
   .re-body { max-width: 1020px; }
