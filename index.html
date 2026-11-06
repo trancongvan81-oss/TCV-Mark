@@ -369,26 +369,8 @@ textarea {
   grid-template-columns: 2fr 1fr;
   gap: 10px;
 }
-.stepper {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  overflow: hidden;
-}
-.stepper button {
-  width: 44px;
-  height: 42px;
-  border: 0;
-  background: var(--bg);
-  font-size: 20px;
-  cursor: pointer;
-}
-.stepper output {
-  min-width: 48px;
-  text-align: center;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+.prow .count-in {
+  width: 64px;
 }
 .seg {
   display: inline-flex;
@@ -13707,6 +13689,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
   /* ---------- Cấu hình & dữ liệu ---------- */
   const PRESETS_F = [
     { n1: 12, n2: 4, n3: 6, p1: 0.25, p2: 1, p3: 0.5 },
+    { n1: 24, n2: 4, n3: 6, p1: 0.125, p2: 1, p3: 0.5 },
     { n1: 18, n2: 4, n3: 6, p1: 0.25, p2: 1, p3: 0.25 },
     { n1: 40, n2: 0, n3: 0, p1: 0.25, p2: 0, p3: 0 }
   ];
@@ -13749,14 +13732,14 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     return {
       v: 2,
       sheet: 'f',
-      n1: 18,
+      n1: 24,
       n2: 4,
       n3: 6,
       prevN2: 4,
       prevN3: 6,
-      p1: 0.25,
+      p1: 0.125,
       p2: 1,
-      p3: 0.25,
+      p3: 0.5,
       tfLadder: TF_LADDER.slice(),
       thr: 0.08,
       td: 1,
@@ -14138,27 +14121,6 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     }
     return h + '</div>';
   }
-  function stepperHTML(id, val, label, dis) {
-    const d = dis ? ' disabled' : '';
-    return (
-      '<span class="stepper"><button type="button" data-step="' +
-      id +
-      '" data-d="-1" aria-label="Bớt ' +
-      label +
-      '"' +
-      d +
-      '>−</button><output>' +
-      val +
-      '</output><button type="button" data-step="' +
-      id +
-      '" data-d="1" aria-label="Thêm ' +
-      label +
-      '"' +
-      d +
-      '>+</button></span>'
-    );
-  }
-
   /* ---------- Tab Đáp án ---------- */
   function renderKey() {
     renderQr();
@@ -14171,6 +14133,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       const off = toggleKey && cfg[r[0]] === 0;
       const showToggle = toggleKey && r[4] > 0;
       const dis = off ? ' disabled' : '';
+      const isTotal = r[1] !== 'p2';
       return (
         '<div class="prow' +
         (off ? ' off' : '') +
@@ -14189,23 +14152,40 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         '</span><small>' +
         r[3] +
         '</small></span>' +
-        stepperHTML(r[0], cfg[r[0]], 'một câu ' + r[2], off) +
-        '<input class="num-in" data-pts="' +
-        r[1] +
-        '" inputmode="decimal" value="' +
-        String(cfg[r[1]]).replace('.', ',') +
-        '" aria-label="Điểm ' +
-        r[5] +
-        ' của ' +
+        '<input class="num-in count-in" data-count="' +
+        r[0] +
+        '" inputmode="numeric" value="' +
+        cfg[r[0]] +
+        '" aria-label="Số câu ' +
         r[2] +
         '"' +
         dis +
-        '></div>'
+        '>' +
+        (isTotal
+          ? '<input class="num-in" data-total="' +
+            r[1] +
+            '" inputmode="decimal" value="' +
+            fmt(cfg[r[0]] * cfg[r[1]]) +
+            '" aria-label="Tổng điểm ' +
+            r[2] +
+            '"' +
+            dis +
+            '>'
+          : '<input class="num-in" data-pts="' +
+            r[1] +
+            '" inputmode="decimal" value="' +
+            String(cfg[r[1]]).replace('.', ',') +
+            '" aria-label="Điểm mỗi câu của ' +
+            r[2] +
+            '"' +
+            dis +
+            '>') +
+        '</div>'
       );
     };
     h += '</div><div class="prow head"><span></span><span>Số câu</span><span>Điểm</span></div>';
-    h += partRow(['n1', 'p1', 'Phần I', 'Trắc nghiệm A–D', MAX1, 'mỗi câu']);
-    h += partRow(['n2', 'p2', 'Phần II', 'Đúng / sai 4 ý', MAX2, 'tối đa mỗi câu'], 'n2');
+    h += partRow(['n1', 'p1', 'Phần I', 'Trắc nghiệm A–D', MAX1]);
+    h += partRow(['n2', 'p2', 'Phần II', 'Đúng / sai 4 ý', MAX2], 'n2');
     if (cfg.n2 > 0) {
       h +=
         '<div class="lrow"><span class="lbl">Điểm Phần II theo số ý đúng</span><div class="llines">' +
@@ -14220,7 +14200,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
               fmt(i === 3 ? cfg.p2 : lad[i + 1] * cfg.p2) +
               '" aria-label="Điểm Phần II, đúng ' +
               (i + 1) +
-              ' ý, tính bằng điểm"> điểm</label>'
+              ' ý, tính bằng điểm"></label>'
             );
           })
           .join('') +
@@ -14231,7 +14211,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         fmt(cfg.p2) +
         ' điểm (bằng điểm của câu Phần II); dòng “Đúng 4 ý” chính là điểm của câu. Đổi thang sẽ chấm lại toàn bộ bài trong đợt đang chọn.</p></div>';
     }
-    h += partRow(['n3', 'p3', 'Phần III', 'Trả lời ngắn, điền số', MAX3, 'mỗi câu'], 'n3');
+    h += partRow(['n3', 'p3', 'Phần III', 'Trả lời ngắn, điền số', MAX3], 'n3');
     h +=
       '<p class="hint">Tổng điểm tối đa <b class="mono">' +
       fmt(tot) +
@@ -14246,6 +14226,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
           '%, 4 ý 100% ' +
           'điểm tối đa của câu.'
         : '.') +
+      ' Ô Điểm ở Phần I và III là tổng điểm của phần đó (tự chia đều cho số câu); Phần II là điểm mỗi câu.' +
       '</p>' +
       '<div class="range-row"><div class="row"><label class="lbl" for="thrIn">Độ nhạy khi đọc ô ' +
       'tô</label><span class="mono" id="thrVal">' +
@@ -14271,17 +14252,29 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         afterCfg();
       };
     });
-    $$('[data-step]', $('#cfgCard')).forEach(function (b) {
-      b.onclick = function () {
-        const k = b.dataset.step,
+    $$('[data-count]', $('#cfgCard')).forEach(function (i) {
+      i.onchange = function () {
+        const k = i.dataset.count,
           lim = { n1: MAX1, n2: MAX2, n3: MAX3 }[k];
-        cfg[k] = clampN(cfg[k] + +b.dataset.d, 0, lim);
+        cfg[k] = clampN(parseInt(i.value, 10) || 0, 0, lim);
         afterCfg();
       };
     });
     $$('[data-pts]', $('#cfgCard')).forEach(function (i) {
       i.onchange = function () {
         cfg[i.dataset.pts] = clampP(i.value, cfg[i.dataset.pts]);
+        afterCfg();
+      };
+    });
+    $$('[data-total]', $('#cfgCard')).forEach(function (i) {
+      i.onchange = function () {
+        const k = i.dataset.total,
+          nKey = k === 'p1' ? 'n1' : 'n3',
+          n = cfg[nKey];
+        if (n > 0) {
+          const tot = clampP(i.value, cfg[nKey] * cfg[k]);
+          cfg[k] = Math.round((tot / n) * 10000) / 10000;
+        }
         afterCfg();
       };
     });
