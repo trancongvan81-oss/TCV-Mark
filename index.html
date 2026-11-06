@@ -859,6 +859,38 @@ h3.ph {
 .keyv b {
   color: var(--fg);
 }
+.kcheck {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.kcheck .kc-sum {
+  margin: 8px 0;
+}
+.kc-part {
+  margin-top: 8px;
+}
+.kc-part .lbl {
+  display: block;
+  margin-bottom: 4px;
+}
+.kc-ans {
+  font-size: 14px;
+  line-height: 1.9;
+  overflow-wrap: anywhere;
+}
+.kc-miss {
+  color: inherit;
+  font-weight: 700;
+  background: var(--red-soft);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0 6px;
+  cursor: pointer;
+  font: inherit;
+}
 .item .meta {
   overflow-wrap: anywhere;
 }
@@ -13914,6 +13946,8 @@ function renderPhoto(sheetImg, cfg, marks, o) {
 
   let tab = 'scan',
     keyPart = 1,
+    keyCheckOpen = false,
+    keyCheckVer = 0,
     scan = null;
   function renderSheetSel() {
     const e = $('#sheetSel');
@@ -14213,7 +14247,12 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     });
     if (cfg.versions.length < 8) k += '<button type="button" class="vchip" id="addVer">+ Thêm đề</button>';
     k +=
-      '</div><div class="fields one"><div class="field"><label class="lbl" for="codeIn">Mã đề (' +
+      '</div><div class="actions"><button type="button" class="btn small" id="keyCheckBtn">' +
+      (keyCheckOpen ? 'Ẩn bảng kiểm tra' : 'Kiểm tra đáp án') +
+      '</button></div>';
+    if (keyCheckOpen) k += keyCheckHTML();
+    k +=
+      '<div class="fields one"><div class="field"><label class="lbl" for="codeIn">Mã đề (' +
       IDN().md +
       ' chữ số; để trống nếu chỉ có một đề)</label><input id="codeIn" class="mono" inputmode="numeric" maxlength="' +
       IDN().md +
@@ -14268,6 +14307,29 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         renderKey();
       };
     });
+    const kcb = $('#keyCheckBtn');
+    if (kcb)
+      kcb.onclick = function () {
+        keyCheckOpen = !keyCheckOpen;
+        if (keyCheckOpen) keyCheckVer = cfg.active;
+        renderKey();
+      };
+    $$('[data-cv]', $('#keyCard')).forEach(function (b) {
+      b.onclick = function () {
+        keyCheckVer = +b.dataset.cv;
+        renderKey();
+      };
+    });
+    $$('[data-fix]', $('#keyCard')).forEach(function (b) {
+      b.onclick = function () {
+        cfg.active = keyCheckVer;
+        keyPart = +b.dataset.fix;
+        saveCfg();
+        renderKey();
+        const kc = $('#keyCard');
+        if (kc) kc.scrollIntoView({ block: 'start' });
+      };
+    });
     const del = $('#verDel');
     if (del)
       del.onclick = function () {
@@ -14277,6 +14339,151 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         renderKey();
       };
     renderPart();
+  }
+  /* ---------- Bảng kiểm tra đáp án: chọn một mã đề thì hiện đủ 3 phần ---------- */
+  function mcqText(x) {
+    if (x === null || x === undefined) return null;
+    if (Array.isArray(x))
+      return x
+        .map(function (o) {
+          return LET[o];
+        })
+        .join('');
+    return LET[x];
+  }
+  function verGaps(ver) {
+    const g = { p1: [], p2: [], p3: [] };
+    for (let q = 0; q < cfg.n1; q++) if (ver.mcq[q] === null || ver.mcq[q] === undefined) g.p1.push(q);
+    for (let q = 0; q < cfg.n2; q++) {
+      const row = ver.tf[q] || [],
+        miss = [];
+      for (let r = 0; r < 4; r++) if (row[r] === null || row[r] === undefined) miss.push(r);
+      if (miss.length) g.p2.push({ q: q, miss: miss });
+    }
+    for (let q = 0; q < cfg.n3; q++) if (!ver.num[q]) g.p3.push(q);
+    return g;
+  }
+  function keyCheckHTML() {
+    if (keyCheckVer >= cfg.versions.length) keyCheckVer = Math.max(0, cfg.versions.length - 1);
+    const ver = cfg.versions[keyCheckVer];
+    if (!ver) return '';
+    const gaps = verGaps(ver),
+      n1 = cfg.n1,
+      n2 = cfg.n2,
+      n3 = cfg.n3,
+      d1 = n1 - gaps.p1.length,
+      d2 = n2 - gaps.p2.length,
+      d3 = n3 - gaps.p3.length;
+    const missTxt = [];
+    if (gaps.p1.length)
+      missTxt.push(
+        'Phần I thiếu Câu ' +
+          gaps.p1
+            .map(function (q) {
+              return q + 1;
+            })
+            .join(', ')
+      );
+    if (gaps.p2.length)
+      missTxt.push(
+        'Phần II thiếu ' +
+          gaps.p2
+            .map(function (e) {
+              return (
+                'Câu ' +
+                (e.q + 1) +
+                ' (ý ' +
+                e.miss
+                  .map(function (r) {
+                    return 'abcd'[r];
+                  })
+                  .join(', ') +
+                ')'
+              );
+            })
+            .join(', ')
+      );
+    if (gaps.p3.length)
+      missTxt.push(
+        'Phần III thiếu Câu ' +
+          gaps.p3
+            .map(function (q) {
+              return q + 1;
+            })
+            .join(', ')
+      );
+    let h = '<div class="kcheck" id="keyCheck"><div class="vchips">';
+    cfg.versions.forEach(function (v, i) {
+      h +=
+        '<button type="button" class="vchip" data-cv="' +
+        i +
+        '" aria-pressed="' +
+        (i === keyCheckVer) +
+        '">Đề ' +
+        (i + 1) +
+        (v.code ? ' · ' + v.code : '') +
+        '</button>';
+    });
+    h += '</div>';
+    h +=
+      missTxt.length === 0
+        ? '<div class="note ok">Đề ' +
+          (ver.code || keyCheckVer + 1) +
+          ' đủ cả 3 phần: Phần I ' +
+          d1 +
+          '/' +
+          n1 +
+          ' · Phần II ' +
+          d2 +
+          '/' +
+          n2 +
+          ' · Phần III ' +
+          d3 +
+          '/' +
+          n3 +
+          '.</div>'
+        : '<div class="note err"><b>Đề ' +
+          (ver.code || keyCheckVer + 1) +
+          ' còn thiếu:</b> ' +
+          esc(missTxt.join('; ')) +
+          '. Chạm vào chỗ thiếu để mở đúng phần đó sửa ngay.</div>';
+    h += '<div class="kc-part"><span class="lbl">Phần I — ' + d1 + '/' + n1 + ' câu</span><div class="kc-ans mono">';
+    for (let q = 0; q < n1; q++) {
+      const t = mcqText(ver.mcq[q]);
+      h +=
+        (q ? ' · ' : '') +
+        (t === null
+          ? '<button type="button" class="kc-miss" data-fix="1" data-q="' + q + '">Câu ' + (q + 1) + ': ?</button>'
+          : '<span title="Câu ' + (q + 1) + '">' + esc(t) + '</span>');
+    }
+    h += '</div></div>';
+    h += '<div class="kc-part"><span class="lbl">Phần II — ' + d2 + '/' + n2 + ' câu đủ 4 ý</span><div class="kc-ans mono">';
+    for (let q = 0; q < n2; q++) {
+      const row = ver.tf[q] || [];
+      h += (q ? ' · ' : '') + '<span title="Câu ' + (q + 1) + '">';
+      for (let r = 0; r < 4; r++) {
+        const v = row[r];
+        h +=
+          v === null || v === undefined
+            ? '<button type="button" class="kc-miss" data-fix="2" data-q="' + q + '">?</button>'
+            : esc(v === 'D' ? 'Đ' : v);
+      }
+      h += '</span>';
+    }
+    h += '</div></div>';
+    h += '<div class="kc-part"><span class="lbl">Phần III — ' + d3 + '/' + n3 + ' câu</span><div class="kc-ans mono">';
+    for (let q = 0; q < n3; q++) {
+      const v = ver.num[q];
+      h +=
+        (q ? ' · ' : '') +
+        (v === '*'
+          ? '<span title="Câu ' + (q + 1) + ' (câu lỗi)">câu lỗi</span>'
+          : v
+            ? '<span title="Câu ' + (q + 1) + '">' + esc(v) + '</span>'
+            : '<button type="button" class="kc-miss" data-fix="3" data-q="' + q + '">Câu ' + (q + 1) + ': thiếu</button>');
+    }
+    h += '</div></div></div>';
+    return h;
   }
   function afterCfg() {
     saveCfg();
@@ -19368,6 +19575,10 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       });
     }
     cfg.active = Math.max(0, first);
+    if (first >= 0) {
+      keyCheckOpen = true;
+      keyCheckVer = first;
+    }
     qrState = {
       kind: 'done',
       warns: r.warnings,
