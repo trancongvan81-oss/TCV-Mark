@@ -11732,7 +11732,6 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
 <script>
 const SHEET_F_JPG="assets/sheet-f.jpg";
 const SHEET_M_JPG="assets/sheet-m.jpg";
-const SHEET_S_JPG="assets/sheet-s.jpg";
 const SHEET_E_JPG="assets/sheet-e.jpg";
 /* ===================== Lõi nhận diện phiếu TLTN (Nguyễn Huệ) ===================== */
 /* Toạ độ tính bằng mm trên trang 208 x 297 mm, đo trực tiếp từ file PDF gốc. */
@@ -11813,51 +11812,6 @@ const SHEET_F = {
   MAX1: 40,
   MAX2: 8,
   MAX3: 6
-};
-/* ---- Phiếu TCV Mark S (đơn vị = điểm ảnh của ảnh mẫu 1901 x 861): 4 ô góc + 1 ô giữa mép trên; Phần I 10
-   câu, Phần II 2 câu, Phần III 3 câu ---- */
-const SHEET_S = {
-  id: 's',
-  name: 'Phiếu TCV Mark - S',
-  PW: 1901,
-  PH: 861,
-  RB: 11.2,
-  K: 7.7,
-  MS: 24,
-  CORNERS: [
-    [28.5, 74.5],
-    [1875.5, 74.5],
-    [1875.5, 813.5],
-    [28.5, 813.5]
-  ],
-  NAME: [266, 38, 390, 66],
-  BAND_Y: [1e9, 1e9, 1e9],
-  bands: false,
-  SPOT: [1009.5, 74.5, 22],
-  SBD_X: [134.5, 172.5],
-  MD_X: [266.0, 304.0, 342.0],
-  ID_Y: [260.25, 315.0, 370.0, 425.0, 480.0, 535.0, 590.0, 645.0, 699.5, 754.25],
-  P1_X: [[485.0, 563.5, 642.0, 719.6]],
-  P1_Y: [324.5, 371.5, 418.5, 465.5, 512.5, 559.5, 606.5, 653.5, 700.5, 747.5],
-  P2_X: [
-    [872.5, 950.2],
-    [872.5, 950.2]
-  ],
-  P2_Y: [
-    [325.5, 372.5, 419.5, 466.5],
-    [608.5, 655.5, 702.5, 749.5]
-  ],
-  P3_X: [
-    [1086.5, 1133.5, 1180.5, 1227.5],
-    [1353.5, 1400.5, 1447.5, 1494.5],
-    [1620.5, 1667.5, 1714.5, 1761.5]
-  ],
-  P3_DASH: 230.5,
-  P3_COMMA: 277.5,
-  P3_D: [325.5, 372.5, 419.5, 466.5, 513.5, 560.5, 607.5, 654.5, 701.5, 748.5],
-  MAX1: 10,
-  MAX2: 2,
-  MAX3: 3
 };
 /* ---- Phiếu TCV Mark M (đơn vị = điểm ảnh của ảnh mẫu 1267 x 1110): 6 ô vuông neo (4 góc + 2 giữa mép),
    Phần I 12 câu, Phần II 4 câu (2 x 2), Phần III 4 câu ---- */
@@ -11963,7 +11917,7 @@ const SHEET_E = Object.assign({}, SHEET_F, {
   MAX2: 0,
   MAX3: 0
 });
-const SHEETS = { f: SHEET_F, m: SHEET_M, s: SHEET_S, e: SHEET_E };
+const SHEETS = { f: SHEET_F, m: SHEET_M, e: SHEET_E };
 let SHEET = SHEET_F,
   K = 1,
   MS = 3.8,
@@ -13693,11 +13647,6 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     { n1: 18, n2: 4, n3: 6, p1: 0.25, p2: 1, p3: 0.25 },
     { n1: 40, n2: 0, n3: 0, p1: 0.25, p2: 0, p3: 0 }
   ];
-  const PRESETS_S = [
-    { n1: 6, n2: 2, n3: 3, p1: 0.5, p2: 2, p3: 1 },
-    { n1: 10, n2: 2, n3: 3, p1: 0.3, p2: 1.5, p3: 1 },
-    { n1: 10, n2: 0, n3: 0, p1: 1, p2: 0, p3: 0 }
-  ];
   const PRESETS_M = [
     { n1: 12, n2: 4, n3: 4, p1: 0.25, p2: 1, p3: 0.75 },
     { n1: 12, n2: 0, n3: 0, p1: 0.5, p2: 0, p3: 0 },
@@ -13709,7 +13658,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     { n1: 20, n2: 0, n3: 0, p1: 0.5, p2: 0, p3: 0 }
   ];
   const presetsFor = function (id) {
-    return id === 's' ? PRESETS_S : id === 'm' ? PRESETS_M : id === 'e' ? PRESETS_E : PRESETS_F;
+    return id === 'm' ? PRESETS_M : id === 'e' ? PRESETS_E : PRESETS_F;
   };
   const presetsNow = function () {
     return presetsFor(cfg && cfg.sheet);
@@ -13757,9 +13706,9 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     x = +String(x).replace(',', '.');
     return isFinite(x) && x >= 0 && x <= 100 ? x : d;
   };
-  /* Dữ liệu lưu từ bản cũ dùng id 'nh' và 'kt'; nay thống nhất là 'f' và 's'. */
+  /* Dữ liệu lưu từ bản cũ dùng id 'nh' và 'kt'; nay thống nhất về mẫu F (mẫu S đã bỏ). */
   const sid = function (id) {
-    return id === 'nh' ? 'f' : id === 'kt' ? 's' : id;
+    return id === 'nh' || id === 'kt' ? 'f' : id;
   };
   const sidKeys = function (o) {
     const out = {};
@@ -13955,9 +13904,8 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     e.innerHTML =
       '<span class="lbl">Loại phiếu</span><div class="vchips">' +
       [
-        ['f', 'Phiếu TCV Mark - F'],
+        ['f', 'Phiếu TCV Mark - F (Chuẩn)'],
         ['m', 'Phiếu TCV Mark - M'],
-        ['s', 'Phiếu TCV Mark - S'],
         ['e', 'Phiếu TCV Mark - E']
       ]
         .map(function (x) {
@@ -13989,7 +13937,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     cfg.thr = cfg.thrs[id] || 0.08;
     cfg.structs = cfg.structs || {};
     cfg.structs[prevId] = { n1: cfg.n1, n2: cfg.n2, n3: cfg.n3, p1: cfg.p1, p2: cfg.p2, p3: cfg.p3 };
-    const st = cfg.structs[id] || (id === 's' ? PRESETS_S[0] : id === 'm' ? PRESETS_M[0] : id === 'e' ? PRESETS_E[0] : PRESETS_F[1]);
+    const st = cfg.structs[id] || (id === 'm' ? PRESETS_M[0] : id === 'e' ? PRESETS_E[0] : PRESETS_F[1]);
     cfg.n1 = Math.min(st.n1, MAX1);
     cfg.n2 = Math.min(st.n2, MAX2);
     cfg.n3 = Math.min(st.n3, MAX3);
@@ -14762,16 +14710,13 @@ function renderPhoto(sheetImg, cfg, marks, o) {
   }
   const sheetFReady = loadImg(SHEET_F_JPG),
     sheetMReady = loadImg(SHEET_M_JPG),
-    sheetSReady = loadImg(SHEET_S_JPG),
     sheetEReady = loadImg(SHEET_E_JPG);
   const curSheetImg = function () {
-    return cfg.sheet === 's'
-      ? sheetSReady
-      : cfg.sheet === 'm'
-        ? sheetMReady
-        : cfg.sheet === 'e'
-          ? sheetEReady
-          : sheetFReady;
+    return cfg.sheet === 'm'
+      ? sheetMReady
+      : cfg.sheet === 'e'
+        ? sheetEReady
+        : sheetFReady;
   };
   function buildMarks(ver) {
     const rng = mulberry32(5),
@@ -14841,23 +14786,6 @@ function renderPhoto(sheetImg, cfg, marks, o) {
             [1415, 35],
             [1430, 1200],
             [65, 1225]
-          ],
-          light: 0.2,
-          noise: 8
-        },
-        o || {}
-      );
-    if (cfg.sheet === 's')
-      o = Object.assign(
-        {
-          ppm: 0.92,
-          w: 1500,
-          h: 900,
-          quad: [
-            [95, 160],
-            [1410, 105],
-            [1430, 700],
-            [75, 750]
           ],
           light: 0.2,
           noise: 8
@@ -18869,7 +18797,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     )
       return { error: 'inconsistent' };
     const order = [cfg.sheet].concat(
-      ['m', 'f', 's', 'e'].filter(function (id) {
+      ['m', 'f', 'e'].filter(function (id) {
         return id !== cfg.sheet;
       })
     );
@@ -18882,11 +18810,10 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       } else fits.push(Object.assign(s, { sheet: id }));
     });
     if (!fits.length) return { error: firstErr || 'structure' };
-    /* ưu tiên loại phiếu có sẵn đúng cấu trúc này (kể cả phiếu đang chọn), nếu không thì giữ phiếu đang chọn */
-    const best =
-      fits.find(function (f) {
-        return f.exact;
-      }) || fits[0];
+    /* Mẫu đang chọn được giữ nguyên khi chứa vừa cấu trúc này; chỉ chuyển sang mẫu khác khi mẫu
+       đang chọn không chứa vừa. (Mẫu F là mẫu chuẩn; không tự chuyển mẫu chỉ vì cấu trúc cũng
+       khớp mẫu sẵn của mẫu khác.) */
+    const best = fits[0];
     const warnings = [];
     if (best.sheet !== cfg.sheet)
       warnings.push(
@@ -18900,6 +18827,23 @@ function renderPhoto(sheetImg, cfg, marks, o) {
           SHEETS[best.sheet].name +
           ', app đã chuyển sang loại phiếu này.'
       );
+    else {
+      const otherExact = fits.find(function (f) {
+        return f.sheet !== cfg.sheet && f.exact;
+      });
+      if (otherExact)
+        warnings.push(
+          'Cấu trúc ' +
+            best.n1 +
+            ' · ' +
+            best.n2 +
+            ' · ' +
+            N3 +
+            ' cũng khớp với ' +
+            SHEETS[otherExact.sheet].name +
+            '. Nếu phiếu in ra là mẫu đó thì chuyển Loại phiếu sang mẫu đó trước khi chấm.'
+        );
+    }
     if (best.multi)
       warnings.push(
         'Cấu trúc đề có thể hiểu theo nhiều cách, app chọn ' +
@@ -19197,12 +19141,12 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     ],
     toomany: [
       'Phần III trong mã QR có nhiều câu hơn mọi loại phiếu hiện có.',
-      'Phiếu có ô tô cho tối đa ' + Math.max(SHEET_F.MAX3, SHEET_S.MAX3, SHEET_M.MAX3) + ' câu Phần III.'
+      'Phiếu có ô tô cho tối đa ' + Math.max(SHEET_F.MAX3, SHEET_E.MAX3, SHEET_M.MAX3) + ' câu Phần III.'
     ],
     structure: [
       'Không suy ra được số câu của từng phần.',
       'Tổng số đáp án không khớp với cấu trúc của phiếu nào (Phần II mỗi câu 4 ý; Phần I tối đa ' +
-        Math.max(SHEET_F.MAX1, SHEET_S.MAX1, SHEET_M.MAX1) +
+        Math.max(SHEET_F.MAX1, SHEET_E.MAX1, SHEET_M.MAX1) +
         ' câu).'
     ]
   };
@@ -19548,6 +19492,26 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       cfg.p1 = pr.p1;
       cfg.p2 = pr.p2;
       cfg.p3 = pr.p3;
+    } else {
+      /* Không có mẫu sẵn cho cấu trúc mới trên phiếu đang chọn: giữ nguyên tỉ lệ điểm giữa
+         các phần, co giãn để tổng tối đa vẫn là 10 (mẫu F là mẫu chuẩn; không còn mẫu S để
+         lấy điểm sẵn). Làm tròn 2 chữ số rồi bù phần dư vào phần cuối để tổng đúng 10. */
+      const tot0 = r.n1 * cfg.p1 + r.n2 * cfg.p2 + r.n3 * cfg.p3;
+      if (tot0 > 0) {
+        const k = 10 / tot0,
+          r2 = function (x) {
+            return Math.round(x * 100) / 100;
+          };
+        cfg.p1 = r2(cfg.p1 * k);
+        cfg.p2 = r2(cfg.p2 * k);
+        cfg.p3 = r2(cfg.p3 * k);
+        const diff = r2(10 - (r.n1 * cfg.p1 + r.n2 * cfg.p2 + r.n3 * cfg.p3));
+        if (diff !== 0) {
+          if (r.n3 > 0) cfg.p3 = r2(cfg.p3 + diff / r.n3);
+          else if (r.n2 > 0) cfg.p2 = r2(cfg.p2 + diff / r.n2);
+          else cfg.p1 = r2(cfg.p1 + diff / r.n1);
+        }
+      }
     }
     let added = 0,
       updated = 0,
