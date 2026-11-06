@@ -13732,12 +13732,12 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     return {
       v: 2,
       sheet: 'f',
-      n1: 24,
+      n1: 12,
       n2: 4,
       n3: 6,
       prevN2: 4,
       prevN3: 6,
-      p1: 0.125,
+      p1: 0.25,
       p2: 1,
       p3: 0.5,
       tfLadder: TF_LADDER.slice(),
@@ -13989,7 +13989,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     cfg.thr = cfg.thrs[id] || 0.08;
     cfg.structs = cfg.structs || {};
     cfg.structs[prevId] = { n1: cfg.n1, n2: cfg.n2, n3: cfg.n3, p1: cfg.p1, p2: cfg.p2, p3: cfg.p3 };
-    const st = cfg.structs[id] || (id === 'm' ? PRESETS_M[0] : id === 'e' ? PRESETS_E[0] : PRESETS_F[1]);
+    const st = cfg.structs[id] || (id === 'm' ? PRESETS_M[0] : id === 'e' ? PRESETS_E[0] : PRESETS_F[0]);
     cfg.n1 = Math.min(st.n1, MAX1);
     cfg.n2 = Math.min(st.n2, MAX2);
     cfg.n3 = Math.min(st.n3, MAX3);
@@ -14256,7 +14256,16 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       i.onchange = function () {
         const k = i.dataset.count,
           lim = { n1: MAX1, n2: MAX2, n3: MAX3 }[k];
-        cfg[k] = clampN(parseInt(i.value, 10) || 0, 0, lim);
+        const nOld = cfg[k];
+        const nNew = clampN(parseInt(i.value, 10) || 0, 0, lim);
+        cfg[k] = nNew;
+        // Phần I/III nhập theo tổng điểm: đổi số câu thì giữ nguyên tổng điểm
+        // (do giáo viên chốt), chia lại điểm mỗi câu theo số câu mới.
+        if ((k === 'n1' || k === 'n3') && nOld > 0 && nNew > 0) {
+          const pKey = k === 'n1' ? 'p1' : 'p3';
+          const tot = nOld * cfg[pKey];
+          cfg[pKey] = Math.round((tot / nNew) * 10000) / 10000;
+        }
         afterCfg();
       };
     });
