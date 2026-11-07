@@ -14134,7 +14134,11 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     keyPart = 1,
     keyCheckOpen = false,
     keyCheckVer = 0,
-    scan = null;
+    scan = null,
+    /* Mẫu đang xem trong tab Phiếu (riêng với loại phiếu chấm cfg.sheet):
+       mở tab Phiếu thì đồng bộ theo cfg.sheet; chọn mẫu trong tab Phiếu chỉ
+       đổi biến này, không đổi cfg.sheet, không chấm lại. */
+    sheetView = null;
   function renderSheetSel() {
     const e = $('#sheetSel');
     if (!e) return;
@@ -14171,6 +14175,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     cfg.thrs[cfg.sheet] = cfg.thr;
     const prevId = cfg.sheet;
     cfg.sheet = id;
+    sheetView = id;
     setSheet(id);
     cfg.thr = cfg.thrs[id] || 0.08;
     cfg.structs = cfg.structs || {};
@@ -14216,7 +14221,10 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       if (nl && scan) nl.innerHTML = nameLineHTML(scan.sbdStr);
     }
     if (t === 'res') renderRes();
-    if (t === 'sheet') renderSheet();
+    if (t === 'sheet') {
+      if (SHEETS[cfg.sheet]) sheetView = cfg.sheet;
+      renderSheet();
+    }
     if (t === 'stats') renderStats();
     window.scrollTo(0, 0);
   }
@@ -18005,13 +18013,38 @@ function renderPhoto(sheetImg, cfg, marks, o) {
   function renderSheet() {
     const host = $('#sheetCard');
     if (!host) return;
-    const id = cfg.sheet,
+    /* Mẫu đang xem trong tab Phiếu: mặc định theo loại phiếu đang chấm (đồng bộ
+       khi mở tab hoặc khi đổi loại phiếu chấm); chọn mẫu trong tab này chỉ đổi
+       sheetView, không đổi cfg.sheet. */
+    if (!SHEETS[sheetView]) sheetView = cfg.sheet;
+    const id = sheetView,
       mx = SHEETS[id] || SHEET_F,
       jpg = SHEET_JPG[id],
       pdf = SHEET_PDF[id];
     let h =
       '<h2>Phiếu trắng để in</h2>' +
-      '<p class="hint">Mẫu đang chọn: <b>' +
+      '<div class="vchips">' +
+      [
+        ['f', 'Phiếu gốc BGD 2025 (F)'],
+        ['t', 'Phiếu BGD 2025 (4MĐ)'],
+        ['m', 'Phiếu TCV Mark - M'],
+        ['e', 'Phiếu TCV Mark - E']
+      ]
+        .map(function (x) {
+          return (
+            '<button type="button" class="vchip" data-shv="' +
+            x[0] +
+            '" aria-pressed="' +
+            (id === x[0]) +
+            '">' +
+            x[1] +
+            '</button>'
+          );
+        })
+        .join('') +
+      '</div>' +
+      '<p class="hint">Chọn mẫu ở đây chỉ để xem và tải phiếu trắng, không đổi loại phiếu đang chấm.</p>' +
+      '<p class="hint">Mẫu đang xem: <b>' +
       esc(mx.name) +
       '</b> — Phần I tối đa ' +
       mx.MAX1 +
@@ -18030,6 +18063,14 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       '<p class="hint">In khổ A4, tỉ lệ 100% (không co vừa trang). Bản màu in ra rõ hơn, khi phô tô cũng ít bị mờ hơn; bản đen trắng dùng khi chỉ có máy in đen trắng hoặc muốn tiết kiệm mực. App chấm được cả hai bản (và cả bản phô tô).</p>' +
       '<p class="hint" id="sheetMsg"></p>';
     host.innerHTML = h;
+    $$('[data-shv]', host).forEach(function (b) {
+      b.onclick = function () {
+        if (SHEETS[b.dataset.shv]) {
+          sheetView = b.dataset.shv;
+          renderSheet();
+        }
+      };
+    });
     $$('[data-dl]', host).forEach(function (b) {
       b.onclick = function () {
         const k = b.dataset.dl;
