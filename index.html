@@ -364,6 +364,22 @@ textarea {
   letter-spacing: 0.12em;
   font-weight: 600;
 }
+.mdboxes {
+  display: flex;
+  gap: 8px;
+}
+.field .mdbox {
+  width: 52px;
+  height: 52px;
+  min-height: 52px;
+  padding: 0;
+  text-align: center;
+  font-size: 26px;
+}
+.field .mdbox.miss {
+  border: 2px solid var(--red);
+  background: var(--red-soft);
+}
 .fields {
   display: grid;
   grid-template-columns: 2fr 1fr;
@@ -1133,6 +1149,12 @@ h3.ph {
   text-shadow: 0 1px 4px #000;
   min-height: 22px;
 }
+.lv-shothint {
+  text-align: center;
+  font-size: 12px;
+  color: #ffffffb3;
+  text-shadow: 0 1px 3px #000;
+}
 .lv-bar {
   height: 5px;
   border-radius: 3px;
@@ -1679,6 +1701,7 @@ h3.ph {
         <div class="lv-bar"><i id="lvBar"></i></div>
         <div class="lv-last" id="lvLast" hidden></div>
         <button class="lv-btn wide" type="button" id="lvShot">Chụp ngay</button>
+        <div class="lv-shothint">Chụp ngay: chụp ảnh tĩnh — máy tự dựng góc còn thiếu, dùng được khi tự chụp mãi không khóa được góc.</div>
       </div>
     </div>
 
@@ -15241,6 +15264,31 @@ function renderPhoto(sheetImg, cfg, marks, o) {
   function pickVersion() {
     pickVersionFor(scan);
   }
+  /* Mã đề có quyết định đáp án không: chỉ khi đã nhập ít nhất một đề có mã (khác rỗng).
+     Đề chưa nhập mã ("để trống nếu chỉ có một đề") thì chấm mọi phiếu theo đề đó,
+     mã đề không chặn điểm. */
+  function mdGateOn() {
+    return cfg.versions.some(function (v) {
+      return v.code && String(v.code).trim() !== '';
+    });
+  }
+  /* Mã đề đọc được có đủ 4 số và trùng một đề đã nhập không. */
+  function mdCodeOk(mdStr) {
+    if (!mdGateOn()) return true;
+    const m = String(mdStr || '');
+    if (!/^\d{4}$/.test(m)) return false;
+    const nz = function (c) {
+      return String(c).replace(/^0+(?=\d)/, '');
+    };
+    return cfg.versions.some(function (v) {
+      return v.code && nz(v.code) === nz(m);
+    });
+  }
+  /* Tên góc phiếu theo thứ tự của detectCorners: 0=trên-trái, 1=trên-phải, 2=dưới-phải, 3=dưới-trái. */
+  const CORNER_NAMES = ['trên-trái', 'trên-phải', 'dưới-phải', 'dưới-trái'];
+  function cornerName(k) {
+    return CORNER_NAMES[k] || '';
+  }
   $('#cam').addEventListener('change', function () {
     const f = this.files && this.files[0];
     this.value = '';
@@ -15279,6 +15327,11 @@ function renderPhoto(sheetImg, cfg, marks, o) {
           rows.push({ name: files[i].name, err: true });
           continue;
         }
+        /* Mã đề chưa hợp lệ thì không lưu điểm. */
+        if (!mdCodeOk(s.mdStr)) {
+          rows.push({ name: files[i].name, mdBlock: true, sbd: s.sbdStr, md: s.mdStr });
+          continue;
+        }
         s.source = 'camera';
         const g = pushResult(s);
         okN++;
@@ -15311,6 +15364,17 @@ function renderPhoto(sheetImg, cfg, marks, o) {
           ': không đọc được</div><div class="meta">' +
           esc(r.name) +
           ' · thiếu 4 ô góc hoặc không mở được ảnh, hãy chụp lại</div></div><span></span><span></span></div>';
+      else if (r.mdBlock)
+        h +=
+          '<div class="item"><div><div class="who">Ảnh ' +
+          (i + 1) +
+          ': chưa lưu — mã đề chưa đọc đủ</div><div class="meta">' +
+          esc(r.name) +
+          ' · SBD ' +
+          esc(r.sbd || '—') +
+          ' · Mã đề ' +
+          esc(r.md || '—') +
+          ' · chưa đủ 4 số hoặc chưa có đáp án; chụp lại riêng ảnh này để sửa mã đề rồi lưu</div></div><span></span><span></span></div>';
       else
         h +=
           '<div class="item"><div><div class="who">SBD ' +
@@ -15505,7 +15569,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       x1 = cx + gw / 2,
       y0 = cy - gh / 2,
       y1 = cy + gh / 2;
-    const ws = Math.min(gw * 0.28, gh * 0.5, 120);
+    const ws = Math.min(gw * 0.35, gh * 0.6, 160);
     return {
       x0: x0,
       x1: x1,
@@ -15552,7 +15616,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       oy: oy
     };
   }
-  function lvOverlay(pts, state, rd) {
+  function lvOverlay(pts, state, rd, miss) {
     const cv = $('#lvOv'),
       v = $('#lvVideo'),
       r = cv.getBoundingClientRect(),
@@ -15570,11 +15634,17 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     const ox = (r.width - vw * k) / 2,
       oy = (r.height - vh * k) / 2;
     const G = lvGeom(r, v);
-    /* 4 ô cửa sổ sáng ở bốn góc: chỉ tìm ô vuông định vị trong các ô này */
-    c.fillStyle = pts ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.16)';
-    c.strokeStyle = 'rgba(255,255,255,0.45)';
-    c.lineWidth = 1.5;
-    G.corners.forEach(function (q) {
+    /* 4 ô cửa sổ sáng ở bốn góc: chỉ tìm ô vuông định vị trong các ô này.
+       Góc nào chưa nhận được (miss) thì tô đỏ để người chấm biết mà dịch máy. */
+    G.corners.forEach(function (q, i) {
+      const isMiss = miss === i;
+      c.fillStyle = isMiss
+        ? 'rgba(255,90,90,0.30)'
+        : pts
+          ? 'rgba(255,255,255,0.07)'
+          : 'rgba(255,255,255,0.16)';
+      c.strokeStyle = isMiss ? '#ff5a5a' : 'rgba(255,255,255,0.45)';
+      c.lineWidth = isMiss ? 3 : 1.5;
       c.fillRect(q[0] - G.ws / 2, q[1] - G.ws / 2, G.ws, G.ws);
       c.strokeRect(q[0] - G.ws / 2, q[1] - G.ws / 2, G.ws, G.ws);
     });
@@ -15676,12 +15746,15 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     r.sbdStr = r.sbd.join('');
     r.mdStr = r.md.join('');
     pickVersionFor(r);
-    const g = gradeAll({ p1: r.p1, p2: r.p2, p3: r.p3 }, cfg, cfg.versions[r.ver]);
+    /* Mã đề chưa hợp lệ thì không hiện điểm xem trước (điểm đó chấm theo đáp án dự phòng, dễ gây nhầm). */
+    const g = mdCodeOk(r.mdStr)
+      ? gradeAll({ p1: r.p1, p2: r.p2, p3: r.p3 }, cfg, cfg.versions[r.ver])
+      : null;
     return { scan: r, g: g, k: RG.ka, rx: RG.rx, ry: RG.ry };
   }
   function lvShowScore(rd) {
     const e = $('#lvScore');
-    if (!rd) {
+    if (!rd || !rd.g) {
       e.hidden = true;
       return;
     }
@@ -15778,7 +15851,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     }
     if (now < LV.cool || (LV.needLeave && LV.leaveMiss < 4)) {
       if (now >= LV.cool && LV.needLeave) lvMsg('Đã chấm xong. Bỏ phiếu ra rồi đưa tờ tiếp theo vào');
-      lvOverlay(d.found === 2 || (d.found === 1 && d.plausible) ? d.pts : null, 'ok');
+      lvOverlay(d.found === 2 || (d.found === 1 && d.plausible) ? d.pts : null, 'ok', null, d.miss);
       LV.timer = setTimeout(lvTick, 120);
       return;
     }
@@ -15823,8 +15896,15 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       }
       if (d.found >= 1 && d.areaFrac < minArea) lvMsg('Đưa máy lại gần hơn để phiếu choán khung');
       else if (d.found === 1) lvMsg('Thấy 4 góc nhưng chưa rõ chiều phiếu, giữ máy thẳng hơn');
+      else if (d.found === 0 && d.miss != null)
+        lvMsg(
+          'Chưa thấy ô vuông đen ở góc ' +
+            cornerName(d.miss) +
+            ' — dịch máy để ô vuông đó lọt vào ô sáng đỏ ở góc ' +
+            cornerName(d.miss)
+        );
       else lvMsg('Đặt 4 ô vuông đen của phiếu vào 4 ô sáng ở góc');
-      lvOverlay(d.found >= 1 ? d.pts : null, 'wait');
+      lvOverlay(d.found >= 1 ? d.pts : null, 'wait', null, d.miss);
       if (LV.miss > 4) {
         LV.rd = null;
         lvShowScore(null);
@@ -15885,7 +15965,9 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       LV.timer = setTimeout(lvTick, 150);
       return;
     }
-    if ($('#lvCont').checked) {
+    /* Mã đề chưa hợp lệ thì không lưu điểm dù đang chấm liên tiếp: rơi xuống đường chấm tay,
+       hiện màn hình chờ xử lý mã đề để giáo viên sửa rồi mới lưu. */
+    if ($('#lvCont').checked && mdCodeOk(s.mdStr)) {
       let g;
       try {
         g = pushResult(s);
@@ -16241,9 +16323,140 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       h +=
         '<div class="note"><b>Số báo danh hoặc mã đề có cột bị tô nhiều ô.</b> Sửa lại trong các ô ' +
         'bên dưới.</div>';
+    if ((scan.sbdStr + scan.mdStr).indexOf('_') >= 0)
+      h +=
+        '<div class="note"><b>Số báo danh hoặc mã đề có cột chưa đọc được.</b> Sửa lại trong các ô ' +
+        'bên dưới.</div>';
     return h;
   }
   const PN = ['I', 'II', 'III'];
+  /* Màn hình chờ xử lý mã đề: mã đề đọc thiếu hoặc chưa có đáp án thì không chấm, không lưu điểm.
+     Ô nhập mã đề điền sẵn các số đã đọc được, ô thiếu tô đỏ — giáo viên chỉ gõ số còn thiếu
+     vào ô đỏ rồi bấm "Chấm lại". */
+  function renderMdPending() {
+    const out = $('#scanOut');
+    const md = String(scan.mdStr || '');
+    const short = /[_?]/.test(md);
+    const missIdx = [];
+    for (let i = 0; i < md.length; i++) if (md[i] === '_' || md[i] === '?') missIdx.push(i + 1);
+    const missTxt = missIdx.length ? 'thiếu số thứ ' + missIdx.join(', số thứ ') : '';
+    let h = '<div class="card" style="margin-top:14px">';
+    if (short)
+      h +=
+        '<div class="note err"><b>Không đọc được đủ 4 số mã đề (đọc được: ' +
+        esc(md || '—') +
+        ').</b><br>Bài này chưa chấm, chưa lưu điểm. ' +
+        (missTxt ? 'Còn ' + missTxt + ' chưa đọc được — ' : '') +
+        'Gõ số còn thiếu vào ô đỏ bên dưới rồi bấm “Chấm lại”, hoặc chụp lại phiếu.</div>';
+    else
+      h +=
+        '<div class="note err"><b>Mã đề ' +
+        esc(md) +
+        ' chưa có đáp án.</b><br>Bài này chưa chấm, chưa lưu điểm. Kiểm tra lại mã ghi tay trên phiếu: ' +
+        'nếu tô sai thì sửa số trong các ô bên dưới rồi bấm “Chấm lại”; nếu chưa nhập đáp án cho mã này thì nhập đáp án rồi chấm lại.</div>';
+    h +=
+      '<div class="field"><label class="lbl" for="sbdIn">Số báo danh</label><input id="sbdIn" class="mono" maxlength="' +
+      SBD_X.length +
+      '" inputmode="numeric" value="' +
+      esc(scan.sbdStr) +
+      '"></div>' +
+      '<div class="field"><label class="lbl">Mã đề</label><div class="mdboxes" id="mdBoxes">';
+    for (let i = 0; i < MD_X.length; i++) {
+      const ch = md[i] || '';
+      const dig = /[0-9]/.test(ch) ? ch : '';
+      const isMiss = ch === '_' || ch === '?';
+      h +=
+        '<input class="mdbox mono' +
+        (isMiss ? ' miss' : '') +
+        '" data-mdbox="' +
+        i +
+        '" inputmode="numeric" maxlength="1" value="' +
+        dig +
+        '" aria-label="Chữ số thứ ' +
+        (i + 1) +
+        ' của mã đề">';
+    }
+    h +=
+      '</div></div><div class="stuname" id="sbdName">' +
+      nameLineHTML(scan.sbdStr) +
+      '</div>';
+    h +=
+      '<p class="hint">Các số đã đọc được điền sẵn. ' +
+      (short ? 'Chỉ cần gõ số còn thiếu vào ô đỏ.' : 'Gõ lại số nào bị tô sai (nếu có).') +
+      '</p>' +
+      '<div class="actions"><button type="button" class="btn primary" id="mdFixBtn">Chấm lại với mã đề này</button>' +
+      '<button type="button" class="btn" id="nextBtn">Chụp lại</button></div>' +
+      '<div class="note err" id="mdFixMsg" hidden></div>';
+    h += '</div>';
+    /* Ảnh đã chụp (chưa có vòng đúng/sai vì chưa chấm) để giáo viên đọc mã ghi tay trên phiếu. */
+    if (scan.photo) {
+      h +=
+        '<div class="card" style="margin-top:14px"><h2>Ảnh đã chụp</h2><div id="cvHost"></div>' +
+        '<p class="hint">Đọc mã đề ghi tay trên phiếu rồi nhập vào các ô trên.</p></div>';
+    }
+    out.innerHTML = h;
+    /* Vẽ ảnh vào khung xem (nếu có ảnh). */
+    if (scan.photo) {
+      try {
+        if (!scan.view) {
+          scan.view = document.createElement('canvas');
+          scan.view.className = 'photo';
+          scan.view.width = scan.photo.width;
+          scan.view.height = scan.photo.height;
+        }
+        const vc = scan.view.getContext('2d');
+        if (vc) vc.drawImage(scan.photo, 0, 0);
+        const host = $('#cvHost');
+        if (host) host.appendChild(scan.view);
+      } catch (e) {}
+    }
+    /* Sửa tay số báo danh (như màn hình chấm thường). */
+    $('#sbdIn').onchange = function () {
+      scan.sbdStr = this.value.replace(/[^0-9_?]/g, '').slice(0, SBD_X.length);
+      scan.saved = false;
+      renderScan();
+    };
+    /* 4 ô mã đề: gõ 1 số thì nhảy sang ô tiếp theo; xoá ở ô trống thì lùi về ô trước. */
+    const boxes = Array.prototype.slice.call($$('[data-mdbox]', out));
+    boxes.forEach(function (b, i) {
+      b.addEventListener('input', function () {
+        this.value = this.value.replace(/\D/g, '').slice(0, 1);
+        if (this.value && i < boxes.length - 1) boxes[i + 1].focus();
+      });
+      b.addEventListener('keydown', function (e) {
+        if (e.key === 'Backspace' && !this.value && i > 0) boxes[i - 1].focus();
+      });
+    });
+    /* Đặt con trỏ vào ô thiếu đầu tiên để giáo viên gõ ngay. */
+    const firstMiss = boxes.filter(function (b) {
+      return b.classList.contains('miss');
+    })[0];
+    if (firstMiss) firstMiss.focus();
+    /* Chấm lại với mã đề đã sửa. */
+    $('#mdFixBtn').onclick = function () {
+      const v = boxes
+        .map(function (b) {
+          return b.value;
+        })
+        .join('');
+      const msg = $('#mdFixMsg');
+      if (!/^\d{4}$/.test(v)) {
+        msg.hidden = false;
+        msg.innerHTML = '<b>Chưa đủ 4 số mã đề.</b> Điền nốt ô đỏ rồi bấm “Chấm lại”.';
+        return;
+      }
+      scan.mdStr = v;
+      pickVersion();
+      scan.saved = false;
+      renderScan();
+    };
+    const nb = $('#nextBtn');
+    if (nb)
+      nb.onclick = function () {
+        if (camSupported()) startLive();
+        else $('#cam').click();
+      };
+  }
   function renderScan() {
     const out = $('#scanOut');
     if (!scan) {
@@ -16278,6 +16491,11 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         '</b><br>' +
         msgs[1] +
         '</div></div>';
+      return;
+    }
+    /* Mã đề chưa hợp lệ: không chấm, không lưu điểm — chờ giáo viên sửa mã đề. */
+    if (!mdCodeOk(scan.mdStr)) {
+      renderMdPending();
       return;
     }
     const g = grade(),
@@ -16343,13 +16561,6 @@ function renderPhoto(sheetImg, cfg, marks, o) {
           '</button>';
       });
       h += '</div>';
-      if (!scan.matched && cfg.versions.length > 1)
-        h +=
-          '<p class="note err">⚠ Mã đề đọc được (' +
-          esc(scan.mdStr || '—') +
-          ') chưa trùng đề nào đã nhập, đang chấm theo Đề ' +
-          (scan.ver + 1) +
-          '.</p>';
     }
     if (!sample) autoSave(scan);
     h +=
@@ -16810,6 +17021,8 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     }
   }
   function pushResult(s) {
+    /* Phòng thủ cuối: mã đề chưa hợp lệ thì không lưu điểm dưới bất kỳ đường nào. */
+    if (!mdCodeOk(s.mdStr)) return null;
     const g = gradeAll({ p1: s.p1, p2: s.p2, p3: s.p3 }, cfg, cfg.versions[s.ver]);
     const e = {
       t: Date.now(),
@@ -16854,7 +17067,8 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     return g;
   }
   function autoSave(s) {
-    if (s && !s.error && s.source !== 'sample') {
+    /* Mã đề chưa hợp lệ thì không lưu điểm. */
+    if (s && !s.error && s.source !== 'sample' && mdCodeOk(s.mdStr)) {
       try {
         pushResult(s);
       } catch (e) {}
@@ -20303,7 +20517,18 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     startLive: startLive,
     lvStop: lvStop,
     LV: LV,
-    SND: SND
+    SND: SND,
+    mdCodeOk: mdCodeOk,
+    mdGateOn: mdGateOn,
+    cornerName: cornerName,
+    detectCorners: detectCorners,
+    lvGeom: lvGeom,
+    lvOverlay: lvOverlay,
+    setScan: function (s) {
+      scan = s;
+    },
+    renderScan: renderScan,
+    autoSave: autoSave
   };
 })();
 
