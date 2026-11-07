@@ -557,6 +557,96 @@ canvas.photo {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* Phiếu trắng để in */
+.sheetimg {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  height: auto;
+  margin: 10px auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+}
+
+/* Thống kê đợt chấm */
+.hist11 {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  margin: 6px 0 2px;
+}
+.hcol {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.hcol b {
+  font-size: 11px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.hcol i {
+  display: block;
+  width: 100%;
+  background: var(--ink);
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+  opacity: 0.85;
+}
+.hcol span {
+  font-size: 10px;
+  text-align: center;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.donutwrap {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+.donut {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  position: relative;
+  flex: none;
+}
+.donut-in {
+  position: absolute;
+  inset: 36px;
+  background: var(--card);
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.donut-in b {
+  font-size: 26px;
+}
+.donut-in span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.donut-leg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+.donut-leg i {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  margin-right: 6px;
+}
 .list {
   display: flex;
   flex-direction: column;
@@ -1605,6 +1695,14 @@ h3.ph {
     <section id="v-res" class="view" hidden aria-label="Kết quả">
       <div class="card" id="resCard"></div>
     </section>
+
+    <section id="v-sheet" class="view" hidden aria-label="Phiếu">
+      <div class="card" id="sheetCard"></div>
+    </section>
+
+    <section id="v-stats" class="view" hidden aria-label="Thống kê">
+      <div class="card" id="statsCard"></div>
+    </section>
   </main>
 </div>
 
@@ -1622,6 +1720,12 @@ h3.ph {
     <button class="tab" type="button" data-tab="res">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V11M12 20V4M19 20v-6"/></svg>
       Kết quả<span class="bd" id="resBadge" hidden>0</span></button>
+    <button class="tab" type="button" data-tab="sheet">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h9l5 5v15a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg>
+      Phiếu</button>
+    <button class="tab" type="button" data-tab="stats">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M12 3v9h9"/></svg>
+      Thống kê</button>
   </div>
 </nav>
 
@@ -11764,12 +11868,22 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
 const SHEET_F_JPG="assets/sheet-f.jpg";
 const SHEET_M_JPG="assets/sheet-m.jpg";
 const SHEET_E_JPG="assets/sheet-e.jpg";
-/* ===================== Lõi nhận diện phiếu TLTN (Nguyễn Huệ) ===================== */
+const SHEET_T_JPG="assets/sheet-t.jpg";
+/* Phiếu trắng để in (file PDF riêng trong assets, tải về bằng fetch + saveFile).
+   F màu: tạo từ ảnh JPG màu của phiếu F (file PDF gốc của F chỉ có bản xám).
+   F đen trắng: file PDF xám vector gốc. T màu: file PDF đỏ vector gốc.
+   T đen trắng: render lại file scan xám ở 150 DPI (gốc 3,85 MB -> 0,29 MB). */
+const SHEET_PDF = {
+  f: { color: 'assets/sheet-f-color.pdf', bw: 'assets/sheet-f-bw.pdf' },
+  t: { color: 'assets/sheet-t-color.pdf', bw: 'assets/sheet-t-bw.pdf' }
+};
+const SHEET_JPG = { f: SHEET_F_JPG, m: SHEET_M_JPG, e: SHEET_E_JPG, t: SHEET_T_JPG };
+/* ===================== Lõi nhận diện phiếu ===================== */
 /* Toạ độ tính bằng mm trên trang 208 x 297 mm, đo trực tiếp từ file PDF gốc. */
-/* ---- Phiếu TCV Mark F (mm, trang 208 x 297) ---- */
+/* ---- Phiếu gốc BGD 2025 (F) (mm, trang 208 x 297) ---- */
 const SHEET_F = {
   id: 'f',
-  name: 'Phiếu TCV Mark - F',
+  name: 'Phiếu gốc BGD 2025 (F)',
   PW: 208,
   PH: 297,
   RB: 1.45,
@@ -11840,6 +11954,88 @@ const SHEET_F = {
   P3_DASH: 217.09,
   P3_COMMA: 222.7,
   P3_D: [228.28, 233.77, 239.37, 244.96, 250.52, 256.1, 261.68, 267.25, 272.79, 278.39],
+  MAX1: 40,
+  MAX2: 8,
+  MAX3: 6
+};
+/* ---- Phiếu BGD 2025 (4MĐ) (mm, trang 209,90 x 296,69): mẫu chế theo BGD của TN maker.
+   Tọa độ đo trực tiếp từ file PDF gốc (vector). Không có vạch BARS như phiếu F nên dùng
+   ORIENT 'rings' để nhận chiều bằng vòng tròn in sẵn. ---- */
+const SHEET_T = {
+  id: 't',
+  name: 'Phiếu BGD 2025 (4MĐ)',
+  PW: 209.9,
+  PH: 296.69,
+  RB: 1.63,
+  ORIENT: 'rings',
+  RR: 1.63,
+  CORNERS: [
+    [13.07, 12.73],
+    [196.68, 12.73],
+    [196.68, 283.99],
+    [13.07, 283.99]
+  ],
+  NAME: [59, 62, 72, 9],
+  MARK_ROWS: [
+    [
+      [13.07, 12.73],
+      [196.68, 12.73]
+    ],
+    [
+      [13.07, 93.11],
+      [196.68, 93.1]
+    ],
+    [
+      [61.68, 157.66],
+      [148.11, 157.66]
+    ],
+    [
+      [61.75, 195.38],
+      [148.11, 195.38]
+    ],
+    [
+      [49.52, 277.0],
+      [160.06, 277.0]
+    ],
+    [
+      [13.07, 283.99],
+      [196.68, 283.99]
+    ]
+  ],
+  BAND_Y: [93.11, 157.66, 195.38, 277.0],
+  bands: true,
+  SBD_X: [141.6, 145.67, 149.74, 153.78, 157.71, 161.66, 165.68, 169.68],
+  MD_X: [179.65, 183.71, 187.68, 191.62],
+  ID_Y: [32.97, 38.73, 44.49, 50.25, 56.01, 61.77, 67.54, 73.3, 79.06, 84.82],
+  P1_X: [
+    [29.32, 37.98, 46.61, 55.12],
+    [72.49, 81.14, 89.78, 98.3],
+    [115.59, 124.24, 132.87, 141.43],
+    [158.81, 167.46, 176.09, 184.53]
+  ],
+  P1_Y: [113.31, 117.74, 122.17, 126.6, 131.03, 135.7, 140.14, 144.5, 148.93, 153.42],
+  P2_X: [
+    [29.26, 37.95],
+    [46.77, 55.19],
+    [72.62, 81.25],
+    [89.88, 98.51],
+    [115.66, 124.31],
+    [133.18, 141.81],
+    [159.0, 167.64],
+    [176.28, 184.89]
+  ],
+  P2_Y: [177.82, 182.25, 186.68, 191.11],
+  P3_X: [
+    [27.94, 33.85, 39.83, 45.79],
+    [55.5, 61.41, 67.39, 73.35],
+    [83.07, 88.97, 94.95, 100.92],
+    [110.63, 116.78, 122.77, 128.73],
+    [138.44, 144.35, 150.33, 156.3],
+    [166.01, 171.92, 177.9, 183.86]
+  ],
+  P3_DASH: 217.49,
+  P3_COMMA: 221.92,
+  P3_D: [226.84, 231.27, 235.94, 240.62, 245.05, 249.48, 254.16, 258.59, 263.26, 267.94],
   MAX1: 40,
   MAX2: 8,
   MAX3: 6
@@ -11948,7 +12144,7 @@ const SHEET_E = Object.assign({}, SHEET_F, {
   MAX2: 0,
   MAX3: 0
 });
-const SHEETS = { f: SHEET_F, m: SHEET_M, e: SHEET_E };
+const SHEETS = { f: SHEET_F, m: SHEET_M, e: SHEET_E, t: SHEET_T };
 let SHEET = SHEET_F,
   K = 1,
   MS = 3.8,
@@ -13692,6 +13888,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
      hay điểm đã chốt, nên không cần tra mẫu nào cả. */
   const DEFAULT_STRUCT = {
     f: { n1: 12, n2: 4, n3: 6, p1: 0.25, p2: 1, p3: 0.5 },
+    t: { n1: 12, n2: 4, n3: 6, p1: 0.25, p2: 1, p3: 0.5 },
     m: { n1: 12, n2: 4, n3: 4, p1: 0.25, p2: 1, p3: 0.75 },
     e: { n1: 40, n2: 0, n3: 0, p1: 0.25, p2: 0, p3: 0 }
   };
@@ -13866,6 +14063,8 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         renderChip();
         const v = document.getElementById('v-res');
         if (v && !v.hidden) renderRes();
+        const vs = document.getElementById('v-stats');
+        if (vs && !vs.hidden) renderStats();
       } catch (e) {
         /* bỏ qua */
       }
@@ -13942,7 +14141,8 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     e.innerHTML =
       '<span class="lbl">Loại phiếu</span><div class="vchips">' +
       [
-        ['f', 'Phiếu TCV Mark - F (Chuẩn)'],
+        ['f', 'Phiếu gốc BGD 2025 (F)'],
+        ['t', 'Phiếu BGD 2025 (4MĐ)'],
         ['m', 'Phiếu TCV Mark - M'],
         ['e', 'Phiếu TCV Mark - E']
       ]
@@ -13991,6 +14191,8 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     renderChip();
     if (tab === 'key') renderKey();
     if (tab === 'stu') renderStu();
+    if (tab === 'sheet') renderSheet();
+    if (tab === 'stats') renderStats();
     return runPhoto(function () {
       return makeSample().then(function (s) {
         return s.canvas;
@@ -14014,6 +14216,8 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       if (nl && scan) nl.innerHTML = nameLineHTML(scan.sbdStr);
     }
     if (t === 'res') renderRes();
+    if (t === 'sheet') renderSheet();
+    if (t === 'stats') renderStats();
     window.scrollTo(0, 0);
   }
   $$('.tab').forEach(function (b) {
@@ -14841,13 +15045,16 @@ function renderPhoto(sheetImg, cfg, marks, o) {
   }
   const sheetFReady = loadImg(SHEET_F_JPG),
     sheetMReady = loadImg(SHEET_M_JPG),
-    sheetEReady = loadImg(SHEET_E_JPG);
+    sheetEReady = loadImg(SHEET_E_JPG),
+    sheetTReady = loadImg(SHEET_T_JPG);
   const curSheetImg = function () {
     return cfg.sheet === 'm'
       ? sheetMReady
       : cfg.sheet === 'e'
         ? sheetEReady
-        : sheetFReady;
+        : cfg.sheet === 't'
+          ? sheetTReady
+          : sheetFReady;
   };
   function buildMarks(ver) {
     const rng = mulberry32(5),
@@ -17752,6 +17959,218 @@ function renderPhoto(sheetImg, cfg, marks, o) {
   function renderRes() {
     renderListBar();
     renderResBody();
+  }
+  /* ---------- Tab Phiếu: xem trước + tải phiếu trắng (bản màu / đen trắng) ---------- */
+  function sheetPdfName(id, kind) {
+    const base =
+      id === 't' ? 'Phieu-BGD-2025-4MD' : id === 'f' ? 'Phieu-goc-BGD-2025-F' : 'Phieu-TCV-Mark-' + String(id).toUpperCase();
+    return base + (kind === 'color' ? '-mau.pdf' : '-den-trang.pdf');
+  }
+  /* Tải file asset: thử fetch + saveFile trước (chạy tốt khi mở qua web); nếu fetch bị
+     chặn (vd mở file trực tiếp bằng file://) thì mở bằng đường dẫn tương đối. */
+  async function downloadAsset(url, name) {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const st = await saveFile(name, await r.blob());
+      return st === 'saved';
+    } catch (e) {
+      try {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return true;
+      } catch (e2) {
+        return false;
+      }
+    }
+  }
+  async function downloadSheetPdf(id, kind) {
+    const msg = $('#sheetMsg'),
+      url = (SHEET_PDF[id] || {})[kind];
+    if (!url) {
+      if (msg) msg.textContent = 'Mẫu này chưa có bản PDF, hãy tải ảnh JPG bên dưới.';
+      return;
+    }
+    const ok = await downloadAsset(url, sheetPdfName(id, kind));
+    if (msg)
+      msg.textContent = ok
+        ? 'Đã tải phiếu trắng (' + (kind === 'color' ? 'bản màu' : 'bản đen trắng') + ').'
+        : 'Không tải được file, hãy thử lại.';
+  }
+  function renderSheet() {
+    const host = $('#sheetCard');
+    if (!host) return;
+    const id = cfg.sheet,
+      mx = SHEETS[id] || SHEET_F,
+      jpg = SHEET_JPG[id],
+      pdf = SHEET_PDF[id];
+    let h =
+      '<h2>Phiếu trắng để in</h2>' +
+      '<p class="hint">Mẫu đang chọn: <b>' +
+      esc(mx.name) +
+      '</b> — Phần I tối đa ' +
+      mx.MAX1 +
+      ' câu, Phần II tối đa ' +
+      mx.MAX2 +
+      ' câu, Phần III tối đa ' +
+      mx.MAX3 +
+      ' câu.</p>' +
+      (jpg ? '<img class="sheetimg" src="' + jpg + '" alt="Phiếu mẫu ' + esc(mx.name) + '">' : '') +
+      '<div class="actions">' +
+      (pdf
+        ? '<button type="button" class="btn primary" data-dl="color">Tải bản màu (PDF)</button>' +
+          '<button type="button" class="btn" data-dl="bw">Tải bản đen trắng (PDF)</button>'
+        : '<button type="button" class="btn primary" data-dl="jpg">Tải ảnh phiếu (JPG)</button>') +
+      '</div>' +
+      '<p class="hint">In khổ A4, tỉ lệ 100% (không co vừa trang). Bản màu in ra rõ hơn, khi phô tô cũng ít bị mờ hơn; bản đen trắng dùng khi chỉ có máy in đen trắng hoặc muốn tiết kiệm mực. App chấm được cả hai bản (và cả bản phô tô).</p>' +
+      '<p class="hint" id="sheetMsg"></p>';
+    host.innerHTML = h;
+    $$('[data-dl]', host).forEach(function (b) {
+      b.onclick = function () {
+        const k = b.dataset.dl;
+        if (k === 'jpg') {
+          downloadAsset(jpg, 'Phieu-' + String(id).toUpperCase() + '.jpg').then(function (ok) {
+            if (!ok) {
+              const m = $('#sheetMsg');
+              if (m) m.textContent = 'Không tải được ảnh phiếu, hãy thử lại.';
+            }
+          });
+        } else downloadSheetPdf(id, k);
+      };
+    });
+  }
+  /* ---------- Tab Thống kê: phổ điểm thang 10 + xếp loại (div/CSS, không thư viện ngoài) ---------- */
+  function renderStats() {
+    const host = $('#statsCard');
+    if (!host) return;
+    const view = listRes();
+    if (!view.length) {
+      host.innerHTML =
+        '<h2>Thống kê đợt chấm</h2><div class="empty">Đợt này chưa có bài nào. Chấm một phiếu, thống kê sẽ hiện ở đây.</div>';
+      return;
+    }
+    const s10 = view.map(function (r) {
+        return r.max ? (r.total / r.max) * 10 : 0;
+      }),
+      n = s10.length,
+      avg = s10.reduce(function (a, b) {
+        return a + b;
+      }, 0) / n,
+      mx10 = Math.max.apply(null, s10),
+      mn10 = Math.min.apply(null, s10);
+    const bins = new Array(11).fill(0);
+    s10.forEach(function (sc) {
+      bins[Math.max(0, Math.min(10, Math.round(sc)))]++;
+    });
+    const bmax = Math.max.apply(null, bins);
+    let yeu = 0,
+      dat = 0,
+      kha = 0,
+      tot = 0;
+    s10.forEach(function (sc) {
+      if (sc < 5) yeu++;
+      else if (sc < 6.5) dat++;
+      else if (sc < 8) kha++;
+      else tot++;
+    });
+    const pc = function (c) {
+        return n ? (c / n) * 100 : 0;
+      },
+      pYeu = pc(yeu),
+      pDat = pc(dat),
+      pKha = pc(kha),
+      pTot = pc(tot),
+      r1 = function (x) {
+        return Math.round(x * 10) / 10;
+      },
+      donut =
+        'conic-gradient(#f44336 0 ' +
+        r1(pYeu) +
+        '%, #ff9800 ' +
+        r1(pYeu) +
+        '% ' +
+        r1(pYeu + pDat) +
+        '%, #cddc39 ' +
+        r1(pYeu + pDat) +
+        '% ' +
+        r1(pYeu + pDat + pKha) +
+        '%, #4caf50 ' +
+        r1(pYeu + pDat + pKha) +
+        '% 100%)';
+    let h =
+      '<div class="row"><h2>Thống kê đợt chấm</h2><span class="hint">' +
+      n +
+      ' học sinh</span></div>' +
+      '<p class="hint">Đợt “' +
+      esc(curList().name) +
+      '” — điểm quy về thang 10.</p>' +
+      '<div class="stats"><span>Trung bình <b>' +
+      fmt(avg) +
+      '</b></span><span>Cao nhất <b>' +
+      fmt(mx10) +
+      '</b></span><span>Thấp nhất <b>' +
+      fmt(mn10) +
+      '</b></span></div>' +
+      '<h3>Phổ điểm (Thang 10)</h3>' +
+      '<div class="hist11" role="img" aria-label="Phổ điểm">' +
+      bins
+        .map(function (c, i) {
+          return (
+            '<div class="hcol"><b>' +
+            c +
+            '</b><i style="height:' +
+            Math.max(2, Math.round((c / bmax) * 90)) +
+            'px" title="' +
+            c +
+            ' học sinh đạt ' +
+            i +
+            ' điểm"></i><span>' +
+            i +
+            '</span></div>'
+          );
+        })
+        .join('') +
+      '</div>' +
+      '<h3>Xếp loại học sinh</h3>' +
+      '<div class="donutwrap"><div class="donut" style="background:' +
+      donut +
+      '"><div class="donut-in"><b>' +
+      n +
+      '</b><span>học sinh</span></div></div>' +
+      '<div class="donut-leg">' +
+      '<div><i style="background:#f44336"></i>Yếu (&lt;5): <b>' +
+      yeu +
+      '</b> · ' +
+      fmt(pYeu) +
+      '%</div>' +
+      '<div><i style="background:#ff9800"></i>Đạt (5–6,5): <b>' +
+      dat +
+      '</b> · ' +
+      fmt(pDat) +
+      '%</div>' +
+      '<div><i style="background:#cddc39"></i>Khá (6,5–8): <b>' +
+      kha +
+      '</b> · ' +
+      fmt(pKha) +
+      '%</div>' +
+      '<div><i style="background:#4caf50"></i>Tốt (≥8): <b>' +
+      tot +
+      '</b> · ' +
+      fmt(pTot) +
+      '%</div>' +
+      '</div></div>' +
+      '<div class="actions"><button type="button" class="btn" id="statsRefresh">Làm mới</button></div>';
+    host.innerHTML = h;
+    const rf = $('#statsRefresh');
+    if (rf)
+      rf.onclick = function () {
+        renderStats();
+      };
   }
   /* Sắp xếp bài thi: mới nhất trước, hoặc theo số báo danh tăng dần (SBD lỗi/trống xếp cuối) */
   let resSort = LS.get('omr.ressort', 'new') === 'sbd' ? 'sbd' : 'new';
