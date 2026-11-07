@@ -16997,7 +16997,10 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       cN = -1,
       cL = -1,
       cH = -1,
-      cT = -1;
+      cT = -1,
+      cR = -1,
+      cD = -1,
+      cG = -1;
     for (let r = 0; r < Math.min(15, rows.length) && head < 0; r++) {
       const hs = rows[r].map(function (c) {
         return plain(cellText(c));
@@ -17007,7 +17010,10 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         bn = -1,
         bl = -1,
         bh = -1,
-        bt = -1;
+        bt = -1,
+        br = -1,
+        bd = -1,
+        bg = -1;
       hs.forEach(function (h, i) {
         const s = idScore(h);
         if (s > bs) {
@@ -17018,6 +17024,9 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         if (bl < 0 && /^lop/.test(h)) bl = i;
         if (bh < 0 && /^ho( dem)?$|^ho va dem$/.test(h)) bh = i;
         if (bt < 0 && h === 'ten') bt = i;
+        if (br < 0 && /^phong( thi)?$/.test(h)) br = i;
+        if (bd < 0 && /^ngay sinh$|^ngay thang nam sinh$|^ngsinh$|^dob$/.test(h)) bd = i;
+        if (bg < 0 && /^khoi$/.test(h)) bg = i;
       });
       if (bn < 0 && bh >= 0 && bt >= 0) {
         head = r;
@@ -17033,6 +17042,11 @@ function renderPhoto(sheetImg, cfg, marks, o) {
           cL = bl;
         }
       }
+      if (head >= 0) {
+        cR = br;
+        cD = bd;
+        cG = bg;
+      }
     }
     let start = head + 1,
       hdrNames = null;
@@ -17044,7 +17058,9 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     } else
       hdrNames = {
         sbd: cellText(rows[head][cI]),
-        name: cH >= 0 ? cellText(rows[head][cH]) + ' + ' + cellText(rows[head][cT]) : cellText(rows[head][cN])
+        name: cH >= 0 ? cellText(rows[head][cH]) + ' + ' + cellText(rows[head][cT]) : cellText(rows[head][cN]),
+        room: cR >= 0 ? cellText(rows[head][cR]) : '',
+        dob: cD >= 0 ? cellText(rows[head][cD]) : ''
       };
     const list = [];
     let skipped = 0,
@@ -17066,7 +17082,15 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         continue;
       }
       seen[k] = 1;
-      list.push({ k: k, sbd: sbd, name: name.normalize('NFC'), cls: cL >= 0 ? cellText(row[cL]) : '' });
+      list.push({
+        k: k,
+        sbd: sbd,
+        name: name.normalize('NFC'),
+        cls: cL >= 0 ? cellText(row[cL]) : '',
+        room: cR >= 0 ? cellText(row[cR]) : '',
+        dob: cD >= 0 ? cellText(row[cD]) : '',
+        grade: cG >= 0 ? cellText(row[cG]) : ''
+      });
     }
     return { list: list, skipped: skipped, dup: dup, hdr: hdrNames };
   }
@@ -17077,7 +17101,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         text:
           'Không tìm thấy thí sinh nào trong ' +
           (srcName || 'dữ liệu') +
-          '. File cần có cột Số báo danh và cột Họ tên (có thể thêm cột Lớp).'
+          '. File cần có cột Số báo danh và cột Họ tên (có thể thêm cột Lớp, Khối, Phòng thi, Ngày sinh).'
       };
       return;
     }
@@ -17115,7 +17139,13 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         upd +
         ')' +
         (res.hdr
-          ? '. Cột số báo danh: “' + res.hdr.sbd + '”, cột họ tên: “' + res.hdr.name + '”'
+          ? '. Cột số báo danh: “' +
+            res.hdr.sbd +
+            '”, cột họ tên: “' +
+            res.hdr.name +
+            '”' +
+            (res.hdr.room ? ', cột phòng thi: “' + res.hdr.room + '”' : '') +
+            (res.hdr.dob ? ', cột ngày sinh: “' + res.hdr.dob + '”' : '')
           : '. Không thấy dòng tiêu đề nên lấy cột 1 là số báo danh, cột 2 là họ tên, cột 3 là lớp') +
         '.' +
         (res.skipped ? ' Bỏ qua ' + res.skipped + ' dòng thiếu số báo danh hoặc họ tên.' : '') +
@@ -17189,7 +17219,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     let n = 0;
     const out = arr.map(function (s) {
       const r = sc[s.k],
-        t = { k: s.k, sbd: s.sbd, name: s.name, cls: s.cls };
+        t = { k: s.k, sbd: s.sbd, name: s.name, cls: s.cls, room: s.room || '', dob: s.dob || '', grade: s.grade || '' };
       if (r) {
         const p = r.parts || ['', '', ''];
         t.md = r.md || '';
@@ -17221,12 +17251,15 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         'STT',
         'Số báo danh',
         'Họ và tên',
+        'Ngày sinh',
+        'Khối',
         'Lớp',
+        'Phòng thi',
         'Mã đề',
+        'Tổng điểm',
         'Phần I',
         'Phần II',
         'Phần III',
-        'Tổng điểm',
         'Điểm tối đa'
       ],
       rows = [head];
@@ -17236,23 +17269,26 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         i + 1,
         s.sbd,
         s.name,
+        s.dob || '',
+        s.grade || '',
         s.cls || '',
+        s.room || '',
         s.md || '',
+        s.tot == null ? '' : s.tot,
         p[0],
         p[1],
         p[2],
-        s.tot == null ? '' : s.tot,
         s.max == null ? '' : s.max
       ]);
     });
-    const extra = [['Số báo danh', 'Mã đề', 'Phần I', 'Phần II', 'Phần III', 'Tổng điểm', 'Điểm tối đa']];
+    const extra = [['Số báo danh', 'Mã đề', 'Tổng điểm', 'Phần I', 'Phần II', 'Phần III', 'Điểm tối đa']];
     listRes()
       .slice()
       .reverse()
       .forEach(function (r) {
         if (stuOf(r.sbd)) return;
         const p = r.parts || ['', '', ''];
-        extra.push([r.sbd, r.md, p[0], p[1], p[2], r.total, r.max]);
+        extra.push([r.sbd, r.md, r.total, p[0], p[1], p[2], r.max]);
       });
     let st = 'unavailable',
       ext = 'xlsx';
@@ -17260,7 +17296,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       await loadScript(XLSX_URL);
       const wb = window.XLSX.utils.book_new(),
         ws = window.XLSX.utils.aoa_to_sheet(rows);
-      ws['!cols'] = [6, 14, 28, 10, 8, 9, 9, 9, 11, 12].map(function (w) {
+      ws['!cols'] = [6, 14, 28, 13, 8, 10, 12, 8, 11, 9, 9, 9, 12].map(function (w) {
         return { wch: w };
       });
       window.XLSX.utils.book_append_sheet(wb, ws, 'Điểm thí sinh');
@@ -17301,21 +17337,76 @@ function renderPhoto(sheetImg, cfg, marks, o) {
           ? { kind: 'err', text: 'Bạn đã huỷ lưu file.' }
           : { kind: 'err', text: 'Chế độ xem này không cho tải file.' };
   }
+  /* File mẫu danh sách thí sinh chuẩn (XLSX, 7 cột). Cột Ngày sinh, Khối và Phòng thi để trống vẫn được. */
+  function stuTemplateRows() {
+    return [
+      ['STT', 'Số báo danh', 'Họ và tên', 'Ngày sinh', 'Khối', 'Lớp', 'Phòng thi'],
+      [1, '24011201', 'Nguyễn Văn An', '12/05/2010', '10', '10A1', 'P01'],
+      [2, '24011202', 'Trần Thị Bình', '03/08/2010', '10', '10A1', 'P01'],
+      [3, '24011203', 'Lê Hoàng Cường', '25/11/2010', '10', '10A2', 'P02']
+    ];
+  }
+  function stuTemplateCsvText() {
+    return (
+      '﻿' +
+      stuTemplateRows()
+        .map(function (r) {
+          return r
+            .map(function (c) {
+              return '"' + String(c).replace(/"/g, '""') + '"';
+            })
+            .join(',');
+        })
+        .join('\r\n') +
+      '\r\n'
+    );
+  }
   async function stuTemplate() {
-    const csv =
-      '﻿Số báo danh,Họ và tên,Lớp\r\n24011201,Nguyễn Văn An,10A1\r\n24011202,Trần Thị Bình,10A1\r\n24011203,Lê Hoàng Cường,10A2\r\n';
-    const st = await saveFile('mau-danh-sach-thi-sinh.csv', csv);
+    const rows = stuTemplateRows();
+    let st = 'unavailable';
+    try {
+      await loadScript(XLSX_URL);
+      const wb = window.XLSX.utils.book_new(),
+        ws = window.XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [6, 14, 28, 13, 8, 10, 12].map(function (w) {
+        return { wch: w };
+      });
+      window.XLSX.utils.book_append_sheet(wb, ws, 'Danh sách thí sinh');
+      const buf = window.XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      st = await saveFile(
+        'mau-danh-sach-thi-sinh.xlsx',
+        new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      );
+    } catch (e) {
+      /* Không tải được bộ ghi Excel thì dùng file mẫu CSV cùng nội dung. */
+      st = await saveFile('mau-danh-sach-thi-sinh.csv', stuTemplateCsvText());
+    }
     stuMsg =
       st === 'saved'
         ? {
             kind: 'ok',
-            text: 'Đã lưu file mẫu. Mở bằng Excel, điền danh sách rồi chọn lại ở nút “Chọn file Excel / CSV”.'
+            text: 'Đã lưu file mẫu. Mở bằng Excel, điền danh sách rồi chọn lại ở nút “Chọn file Excel / CSV”. Cột Ngày sinh, Khối và Phòng thi để trống vẫn được.'
           }
         : st === 'declined'
           ? { kind: 'err', text: 'Bạn đã huỷ lưu file mẫu.' }
           : {
               kind: 'err',
-              text: 'Chế độ xem này không cho tải file. Bạn có thể tự tạo file Excel với 3 cột: Số báo danh, Họ và tên, Lớp.'
+              text: 'Chế độ xem này không cho tải file. Bạn có thể tự tạo file Excel với 7 cột: STT, Số báo danh, Họ và tên, Ngày sinh, Khối, Lớp, Phòng thi.'
+            };
+  }
+  async function stuTemplateCsv() {
+    const st = await saveFile('mau-danh-sach-thi-sinh.csv', stuTemplateCsvText());
+    stuMsg =
+      st === 'saved'
+        ? {
+            kind: 'ok',
+            text: 'Đã lưu file mẫu CSV. Mở bằng Excel, điền danh sách rồi chọn lại ở nút “Chọn file Excel / CSV”. Cột Ngày sinh, Khối và Phòng thi để trống vẫn được.'
+          }
+        : st === 'declined'
+          ? { kind: 'err', text: 'Bạn đã huỷ lưu file mẫu.' }
+          : {
+              kind: 'err',
+              text: 'Chế độ xem này không cho tải file. Bạn có thể tự tạo file Excel với 7 cột: STT, Số báo danh, Họ và tên, Ngày sinh, Khối, Lớp, Phòng thi.'
             };
   }
   function renderStu() {
@@ -17344,7 +17435,9 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       'trong kết quả, bảng điểm Excel và file PDF. Số 0 đứng đầu được bỏ qua khi so khớp ' +
       '(ví dụ “01” khớp với “1”). Muốn đổi đợt, vào mục Kết quả.</p>' +
       '<div class="actions"><label class="btn primary" for="stuFile">Chọn file Excel / CSV</label>' +
-      '<button type="button" class="btn" id="stuTpl">Tải file mẫu</button></div>' +
+      '<button type="button" class="btn primary" id="stuTpl">Tải file mẫu chuẩn (XLSX)</button>' +
+      '<button type="button" class="btn small" id="stuTplCsv">Tải file mẫu (CSV)</button></div>' +
+      '<p class="hint">Tải file mẫu, điền đủ 7 cột (STT, Số báo danh, Họ và tên, Ngày sinh, Khối, Lớp, Phòng thi) rồi nhập lại — cột Ngày sinh, Khối và Phòng thi để trống vẫn được.</p>' +
       (arr.length
         ? '<div class="actions"><button type="button" class="btn" id="stuSync">Cập nhật điểm đã chấm</button>' +
           '<button type="button" class="btn primary" id="stuXls">Xuất Excel danh sách có điểm</button></div>'
@@ -17387,7 +17480,9 @@ function renderPhoto(sheetImg, cfg, marks, o) {
             !q ||
             plain(s.name).indexOf(q) >= 0 ||
             s.k.indexOf(stuKey(q) || '\u0000') >= 0 ||
-            plain(s.cls).indexOf(q) >= 0
+            plain(s.cls).indexOf(q) >= 0 ||
+            plain(s.grade || '').indexOf(q) >= 0 ||
+            plain(s.room || '').indexOf(q) >= 0
           );
         });
       h +=
@@ -17396,12 +17491,17 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         '" autocomplete="off"></div><div class="stu-list">';
       rows.slice(0, stuShow).forEach(function (s) {
         const r = graded[s.k];
+        const meta = [s.grade ? 'Khối ' + s.grade : '', s.cls, s.room ? 'Phòng ' + s.room : '', s.dob || '']
+          .filter(function (x) {
+            return x;
+          })
+          .join(' · ');
         h +=
           '<div class="stu-row"><span class="stu-id mono">' +
           esc(s.sbd) +
           '</span><span class="stu-nm">' +
           esc(s.name) +
-          (s.cls ? '<small>' + esc(s.cls) + '</small>' : '') +
+          (meta ? '<small>' + esc(meta) + '</small>' : '') +
           '</span><span class="stu-sc">' +
           (r ? fmt(r.total) : s.tot != null ? fmt(s.tot) : '') +
           '</span><button type="button" data-sdel="' +
@@ -17420,8 +17520,10 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     }
     h +=
       '<h3 class="ph">Thêm một thí sinh</h3><div class="stu-add"><input id="saId" inputmode="numeric" placeholder="Số báo danh" ' +
-      'aria-label="Số báo danh"><input id="saName" placeholder="Họ và tên" aria-label="Họ và tên"><input id="saCls" ' +
-      'placeholder="Lớp" aria-label="Lớp"><button type="button" class="btn small primary" id="saGo">Thêm</button></div>' +
+      'aria-label="Số báo danh"><input id="saName" placeholder="Họ và tên" aria-label="Họ và tên"><input id="saDob" ' +
+      'placeholder="Ngày sinh (vd 12/05/2010)" aria-label="Ngày sinh"><input id="saGrade" placeholder="Khối (vd 10)" ' +
+      'aria-label="Khối"><input id="saCls" placeholder="Lớp" aria-label="Lớp"><input id="saRoom" placeholder="Phòng thi" ' +
+      'aria-label="Phòng thi"><button type="button" class="btn small primary" id="saGo">Thêm</button></div>' +
       (arr.length
         ? '<div class="actions"><button type="button" class="btn ghost danger" id="stuClear">Xoá cả danh sách</button></div>'
         : '');
@@ -17450,6 +17552,10 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       };
     $('#stuTpl').onclick = async function () {
       await stuTemplate();
+      renderStu();
+    };
+    $('#stuTplCsv').onclick = async function () {
+      await stuTemplateCsv();
       renderStu();
     };
     $('#stuParse').onclick = function () {
@@ -17507,16 +17613,29 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         renderStu();
         return;
       }
+      const ex = stuOf(k);
       stuApply(
         {
-          list: [{ k: k, sbd: sbd, name: name, cls: $('#saCls').value.trim() }],
+          list: [
+            {
+              k: k,
+              sbd: sbd,
+              name: name,
+              cls: $('#saCls').value.trim(),
+              room: $('#saRoom').value.trim(),
+              dob: $('#saDob').value.trim(),
+              grade: $('#saGrade').value.trim()
+            }
+          ],
           skipped: 0,
           dup: 0,
           hdr: { sbd: '', name: '' }
         },
         ''
       );
-      stuMsg.text = 'Đã lưu thí sinh ' + name + '.';
+      stuMsg.text = ex
+        ? 'Số báo danh ' + sbd + ' đã có tên ' + ex.name + ' — đã cập nhật thành ' + name + '.'
+        : 'Đã lưu thí sinh ' + name + '.';
       renderStu();
       renderRes();
     };
@@ -18689,16 +18808,20 @@ function renderPhoto(sheetImg, cfg, marks, o) {
   async function exportXlsx() {
     const rows = [
       [
-        'Thời gian',
+        'STT',
         'Số báo danh',
         'Họ tên',
+        'Ngày sinh',
+        'Khối',
         'Lớp',
+        'Phòng thi',
         'Mã đề',
+        'Tổng điểm',
         'Phần I',
         'Phần II',
         'Phần III',
-        'Tổng điểm',
-        'Điểm tối đa'
+        'Điểm tối đa',
+        'Thời gian'
       ]
     ];
     const lr = resSort === 'sbd' ? sbdSorted(listRes()) : listRes().slice().reverse(),
@@ -18712,20 +18835,24 @@ function renderPhoto(sheetImg, cfg, marks, o) {
     ['I', 'II', 'III'].forEach(function (nm, i) {
       for (let q = 1; q <= cnt[i]; q++) rows[0].push('Phần ' + nm + ' - Câu ' + q);
     });
-    lr.forEach(function (r) {
+    lr.forEach(function (r, i) {
       const p = r.parts || ['', '', ''];
       const st = stuOf(r.sbd);
       rows.push([
-        new Date(r.t).toLocaleString('vi-VN'),
+        i + 1,
         r.sbd,
         st ? st.name : '',
-        st ? st.cls : '',
+        st ? st.dob || '' : '',
+        st ? st.grade || '' : '',
+        st ? st.cls || '' : '',
+        st ? st.room || '' : '',
         r.md,
+        r.total,
         p[0],
         p[1],
         p[2],
-        r.total,
-        r.max
+        r.max,
+        new Date(r.t).toLocaleString('vi-VN')
       ]);
       const an = r.ans || {},
         row = rows[rows.length - 1];
@@ -18767,7 +18894,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       await loadScript(XLSX_URL);
       const wb = window.XLSX.utils.book_new(),
         ws = window.XLSX.utils.aoa_to_sheet(rows);
-      const widths = [20, 14, 28, 10, 8, 9, 9, 9, 11, 12];
+      const widths = [6, 14, 28, 13, 8, 10, 12, 8, 11, 9, 9, 9, 12, 16];
       while (widths.length < rows[0].length) widths.push(13);
       ws['!cols'] = widths.map(function (w) {
         return { wch: w };
@@ -19011,8 +19138,8 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       pcts.reduce(function (a, b) {
         return a + b;
       }, 0) / (pcts.length || 1);
-    const colx = [M, M + 62, M + 215, M + 560, M + 650, M + 735, M + 820, M + 910],
-      hd = ['STT', 'SBD', 'Họ tên', 'Mã đề', 'Phần I', 'Phần II', 'Phần III', 'Tổng điểm'];
+    const colx = [M, M + 55, M + 175, M + 395, M + 525, M + 580, M + 675, M + 740, M + 855, M + 925, M + 1005],
+      hd = ['STT', 'SBD', 'Họ tên', 'Ngày sinh', 'Khối', 'Phòng thi', 'Mã đề', 'Tổng điểm', 'Phần I', 'Phần II', 'Phần III'];
     for (let p = 0; p < np; p++) {
       const cv = document.createElement('canvas');
       cv.width = W;
@@ -19054,13 +19181,17 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         c.font = '400 26px ' + F;
         const sn = stuOf(r.sbd);
         let nm = sn ? sn.name : '';
-        while (nm && c.measureText(nm).width > 325) nm = nm.slice(0, -2);
+        while (nm && c.measureText(nm).width > 210) nm = nm.slice(0, -2);
         if (sn && nm !== sn.name) nm += '…';
         [
           p * per + j + 1,
           r.sbd || '—',
           nm,
+          sn ? sn.dob || '' : '',
+          sn ? sn.grade || '' : '',
+          sn ? sn.room || '' : '',
           r.md || '—',
+          '',
           pt[0] === '' ? '' : fmt(pt[0]),
           pt[1] === '' ? '' : fmt(pt[1]),
           pt[2] === '' ? '' : fmt(pt[2])
