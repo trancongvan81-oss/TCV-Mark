@@ -15887,8 +15887,8 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       })
     };
   }
-  function lvRead(v, hint) {
-    const RG = lvRegion(v, { s: 1300, m: 1100, e: 1100 }[SHEET.id] || 1000),
+  function lvRead(v, hint, scale) {
+    const RG = lvRegion(v, ({ s: 1300, m: 1100, e: 1100 }[SHEET.id] || 1000) * (scale || 1)),
       w = RG.w,
       h = RG.h;
     const cv = LV.rdc || (LV.rdc = document.createElement('canvas'));
@@ -15908,6 +15908,18 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       ? gradeAll({ p1: r.p1, p2: r.p2, p3: r.p3 }, cfg, cfg.versions[r.ver])
       : null;
     return { scan: r, g: g, k: RG.ka, rx: RG.rx, ry: RG.ry };
+  }
+  /* Đọc xem trước khi đang quét: đo thời gian và giảm độ phân giải nếu máy chậm (bản chấm khi chụp vẫn đọc độ phân giải cao) */
+  function lvReadT(v, hint) {
+    const t = performance.now();
+    try {
+      return lvRead(v, hint, LV.rs || 1);
+    } finally {
+      const dt = performance.now() - t;
+      LV.rc = LV.rc ? LV.rc * 0.6 + dt * 0.4 : dt;
+      if (LV.rc > 600) LV.rs = Math.max(0.55, (LV.rs || 1) * 0.88);
+      else if (LV.rc < 220) LV.rs = Math.min(1, (LV.rs || 1) * 1.05);
+    }
   }
   function lvShowScore(rd) {
     const e = $('#lvScore');
@@ -15942,7 +15954,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       LV.timer = setTimeout(lvTick, 120);
       return;
     }
-    const RG = lvRegion(v, 800),
+    const RG = lvRegion(v, LV.edge || 800),
       w = RG.w,
       h = RG.h,
       k = RG.ka;
@@ -15964,18 +15976,24 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       return [ax - hs, ay - hs, ax + hs, ay + hs];
     });
     let d;
+    const tD = performance.now();
     try {
       d = detectCorners(c.getImageData(0, 0, w, h), w, h, wins);
     } catch (e) {
       d = { found: 0 };
     }
+    /* Tự điều chỉnh theo tốc độ máy: máy chậm thì phân tích ảnh nhỏ hơn và thưa hơn, máy mạnh giữ độ chi tiết tối đa */
+    const dt = performance.now() - tD;
+    LV.cd = LV.cd ? LV.cd * 0.7 + dt * 0.3 : dt;
+    if (LV.cd > 150) LV.edge = Math.max(480, (LV.edge || 800) * 0.88);
+    else if (LV.cd < 60) LV.edge = Math.min(800, (LV.edge || 800) * 1.06);
     const now = Date.now();
     /* Ánh sáng không đều làm cửa sổ nhỏ ở góc khó thấy ô vuông, trong khi phân tích cả vùng khung vẫn nhận
        được phiếu. Khi đó dùng kết quả phân tích cả vùng để vẫn cho chấm. */
-    if (d.found < 2 && now >= LV.cool && now - (LV.fbT || 0) > 300) {
+    if (d.found < 2 && now >= LV.cool && now - (LV.fbT || 0) > Math.max(300, (LV.rc || 0) * 2.5)) {
       LV.fbT = now;
       try {
-        const rd = lvRead(v);
+        const rd = lvReadT(v);
         if (rd && rd.scan && rd.scan.P) {
           const f = k / rd.k,
             P = rd.scan.P.map(function (p) {
@@ -16026,10 +16044,10 @@ function renderPhoto(sheetImg, cfg, marks, o) {
       const HOLD = 0,
         el = LV.t0 ? Date.now() - LV.t0 : 0;
       const t = Date.now();
-      if (LV.stable >= 1 && t - LV.rdT > 450) {
+      if (LV.stable >= 1 && t - LV.rdT > Math.max(450, (LV.rc || 0) * 2.5)) {
         LV.rdT = t;
         try {
-          LV.rd = lvRead(v, LV.hint);
+          LV.rd = lvReadT(v, LV.hint);
         } catch (e) {
           LV.rd = null;
         }
@@ -16067,7 +16085,7 @@ function renderPhoto(sheetImg, cfg, marks, o) {
         lvShowScore(null);
       }
     }
-    LV.timer = setTimeout(lvTick, 90);
+    LV.timer = setTimeout(lvTick, Math.max(90, Math.min(300, LV.cd || 0)));
   }
   async function lvCapture(manual) {
     if (LV.busy) return;
